@@ -40,7 +40,13 @@ public class AIUnit {
         return angleTo(u.location);
     }
 
+    double orientAngle(AIPoint point) {
+        double d = angleTo(point);
+        return AI.orientAngle(getAngle() + d);
+    }
 
+
+    double distanceTo(double x, double y) { return location.distance(x, y); }
     double distanceTo(AIPoint point) {
         return location.distance(point);
     }

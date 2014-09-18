@@ -1,8 +1,5 @@
 
-import model.Game;
-import model.Hockeyist;
-import model.Move;
-import model.World;
+import model.*;
 
 import java.awt.geom.Line2D;
 import java.awt.geom.Point2D;
@@ -26,6 +23,9 @@ public final class MyStrategy implements Strategy {
         move.setPassAngle(m.getPassAngle());
         move.setPassPower(m.getPassPower());
         move.setTeammateIndex(m.getTeammateIndex());
+        if (move.getAction() == ActionType.STRIKE && self.getRemainingCooldownTicks() == 0 && world.getPuck().getOwnerHockeyistId() == self.getId()) {
+            System.out.println("STRIKE");
+        }
     }
 
 

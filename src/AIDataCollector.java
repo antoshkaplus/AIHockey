@@ -8,18 +8,30 @@ import java.util.List;
  * Created by antoshkaplus on 9/17/14.
  */
 public class AIDataCollector {
-    BufferedWriter writer;
+    private BufferedWriter puckWriter;
+    private BufferedWriter hockeyistWriter;
     List<AIPoint> locations = new ArrayList<AIPoint>();
     List<Double> speed = new ArrayList<Double>();
 
-    AIDataCollector() {
+    AIDataCollector() { }
+
+    public BufferedWriter getPuckWriter() {
         try {
-            writer = new BufferedWriter(new FileWriter("puck.txt", true));
-        } catch (IOException e) {
-            System.out.print("Can't write to file");
-        }
+            if (puckWriter == null) {
+                puckWriter = new BufferedWriter(new FileWriter("puck.txt", false));
+            }
+        } catch (Exception e) {}
+        return puckWriter;
     }
 
+    public BufferedWriter getHockeyistWriter() {
+        try {
+            if (hockeyistWriter == null) {
+                hockeyistWriter = new BufferedWriter(new FileWriter("hockeyist.txt", false));
+            }
+        } catch (Exception e) {}
+        return hockeyistWriter;
+    }
 
     void collectPuckData(AIPuck puck, AIManager.AIHockeyist puckOwner) {
         if (puckOwner == null) {
@@ -67,11 +79,11 @@ public class AIDataCollector {
     void writeResults() {
         try {
             for (int i = 0; i < locations.size(); ++i) {
-                writer.write(String.format("%1$.2f", speed.get(i))  + "," +
+                puckWriter.write(String.format("%1$.2f", speed.get(i))  + "," +
                              String.format("%1$.2f", locations.get(0).distance(locations.get(i))) + ";");
             }
-            writer.newLine();
-            writer.flush();
+            puckWriter.newLine();
+            puckWriter.flush();
         } catch (IOException e) {
             System.out.print("Can't write to file");
         }

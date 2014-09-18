@@ -68,4 +68,10 @@ class AILine implements Cloneable {
         return one < two ? this.one : this.two;
     }
 
+    AIPoint farthestPoint(AIPoint point) {
+        double one = this.one.distance(point);
+        double two = this.two.distance(point);
+        return one > two ? this.one : this.two;
+    }
+
 }
