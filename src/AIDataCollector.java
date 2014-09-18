@@ -77,13 +77,14 @@ public class AIDataCollector {
     }
 
     void writeResults() {
+        BufferedWriter writer = getPuckWriter();
         try {
             for (int i = 0; i < locations.size(); ++i) {
-                puckWriter.write(String.format("%1$.2f", speed.get(i))  + "," +
+                writer.write(String.format("%1$.2f", speed.get(i))  + "," +
                              String.format("%1$.2f", locations.get(0).distance(locations.get(i))) + ";");
             }
-            puckWriter.newLine();
-            puckWriter.flush();
+            writer.newLine();
+            writer.flush();
         } catch (IOException e) {
             System.out.print("Can't write to file");
         }

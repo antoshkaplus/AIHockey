@@ -1,43 +1,176 @@
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
 
-import static java.lang.Math.abs;
-import static java.lang.Math.signum;
+import static java.lang.Math.*;
 
 /**
  * Created by antoshkaplus on 9/17/14.
  * Should be singleton class
+ *
+ * not thread safe... be careful
  */
+
 public class AIFriction {
 
-    ArrayList<Record> hockeyistFriction;
-    ArrayList<Record> puckFriction;
+    // computing every tick
+    private ArrayList<Record> hockeyistFriction = new ArrayList<Record>();
+    private ArrayList<Record> puckFriction = new ArrayList<Record>();
 
+    private DistanceComparator distanceComparator = new DistanceComparator();
+    private SpeedComparator speedComparator = new SpeedComparator();
 
+    // getters use it... don't use it anywhere else
+    private Record bufferRecord = new Record();
+    private static AIFriction instance = null;
 
-
-
-
-
-
-    // can provide with starting speed
-    // can provide distance to go
-    // should be able to get future speed and time required for moving to distance
-    double hockeyistAfterDistance(double distance, double startingSpeed) {
-        int i = Collections.binarySearch(hockeyistFriction, startingSpeed);
-        if (i < 0) {
-            // should find most nearest or make middle
-            // next
-            hockeyistFriction.get(abs(i+1));
-            // prev
-            hockeyistFriction.get(abs(i+1)-1);
+    private AIFriction() {
+        String[] speedDistance = hockeyistData.split(";");
+        for (String s : speedDistance) {
+            int i = s.indexOf(',');
+            double speed = Double.parseDouble(s.substring(0, i));
+            double distance = Double.parseDouble(s.substring(i+1));
+            hockeyistFriction.add(new Record(distance, speed));
         }
+        hockeyistFriction.add(new Record(hockeyistFriction.get(hockeyistFriction.size()-1).distance, 0));
     }
+
+    public static AIFriction getInstance() {
+        if (instance == null) {
+            instance = new AIFriction();
+        }
+        return instance;
+    }
+
+    RecordTicks getRecordBySpeed(List<Record> friction, double speed) {
+        RecordTicks r = new RecordTicks();
+        bufferRecord.speed = speed;
+        int i = Collections.binarySearch(friction, bufferRecord, speedComparator);
+        if (i < 0) {
+            i = abs(i+1);
+            int k_0 = i-1;
+            int k_1 = i;
+            if (k_0 < 0) {
+                k_0 = 0;
+            }
+            if (k_1 == friction.size()) {
+                k_1 = k_0;
+            }
+            Record r_0 = friction.get(k_0);
+            Record r_1 = friction.get(k_1);
+            double part = (speed - r_0.speed)/(r_1.speed - r_0.speed);
+            if (k_0 == k_1) part = 0;
+            r.record = new Record(r_0.distance + part*(r_1.distance - r_0.distance), speed);
+            r.tick = k_0 + part;
+        } else {
+            if (i == friction.size()) throw new RuntimeException();
+            r.record = friction.get(i);
+            r.tick = i;
+        }
+        return r;
+    }
+
+    // before uing it you need to get distance and add, subtract from it
+    RecordTicks getRecordByDistance(List<Record> friction, double distance) {
+        RecordTicks r = new RecordTicks();
+        bufferRecord.distance = distance;
+        int i = Collections.binarySearch(friction, bufferRecord, distanceComparator);
+        if (i < 0) {
+            i = abs(i+1);
+            int k_0 = i-1;
+            int k_1 = i;
+            if (k_0 < 0) {
+                k_0 = 0;
+            }
+            Record r_0 = friction.get(k_0);
+            Record r_1 = friction.get(k_1);
+            double part = (distance - r_0.distance)/(r_1.distance - r_0.distance);
+            r.record = new Record(distance, r_0.speed + part*(r_1.speed - r_0.speed));
+            r.tick = k_0 + part;
+        } else {
+            if (i == friction.size()) throw new RuntimeException();
+            r.record = friction.get(i);
+            r.tick = i;
+        }
+        return r;
+    }
+
+    // returns speed and ticks
+    SpeedTicks hockeyistAfterDistance(double distance, double startingSpeed) {
+        RecordTicks r = getRecordBySpeed(hockeyistFriction, startingSpeed);
+        // add current distance to one that we looking
+        double t = r.tick;
+        r = getRecordByDistance(hockeyistFriction, r.record.distance + distance);
+        return new SpeedTicks(r.record.speed, r.tick - t);
+    }
+
+    // returns distance and speed
+    DistanceSpeed hockeyistAfterTicks(double ticks, double startingSpeed) {
+        RecordTicks rt = getRecordBySpeed(hockeyistFriction, startingSpeed);
+        int i = (int)ceil(rt.tick + ticks);
+        if (i >= hockeyistFriction.size()) {
+            i = hockeyistFriction.size()-1;
+            //throw new RuntimeException();
+        }
+        Record r = hockeyistFriction.get(i);
+        return new DistanceSpeed(r.distance - rt.record.distance, r.speed);
+    }
+
+    // returns distance and ticks
+    DistanceTicks hockeyistStopDistance(double startingSpeed) {
+        RecordTicks r = getRecordBySpeed(hockeyistFriction, startingSpeed);
+        return new DistanceTicks(
+                hockeyistFriction.get(hockeyistFriction.size()-1).distance - r.record.distance,
+                hockeyistFriction.size() - r.tick);
+    }
+
+    class DistanceTicks {
+        DistanceTicks() {}
+        DistanceTicks(double distance, double ticks) {
+            this.distance = distance;
+            this.ticks = ticks;
+        }
+
+        double distance;
+        double ticks;
+    }
+
+    class DistanceSpeed {
+        DistanceSpeed() {}
+        DistanceSpeed(double distance, double speed) {
+            this.distance = distance;
+            this.speed = speed;
+        }
+
+        double distance;
+        double speed;
+    }
+
+    class SpeedTicks {
+        SpeedTicks() {}
+        SpeedTicks(double speed, double ticks) {
+            this.speed = speed;
+            this.ticks = ticks;
+        }
+
+        double speed;
+        double ticks;
+    }
+
 
     // keep speed and distance traveled
     class Record implements Comparable<Double> {
+        // now speed
         double speed;
+        // traveled distance from beginning
         double distance;
+
+        Record() {}
+        Record(double distance, double speed) {
+            this.distance = distance;
+            this.speed = speed;
+        }
 
         @Override
         public int compareTo(Double o) {
@@ -45,6 +178,28 @@ public class AIFriction {
         }
     }
 
+    // tick from beginning
+    class RecordTicks {
+        Record record;
+        double tick;
+    }
+
+    class SpeedComparator implements Comparator<Record> {
+        // o1 - o2
+        @Override
+        public int compare(Record o1, Record o2) {
+            // speed in decreasing order
+            return -(int)signum(o1.speed - o2.speed);
+        }
+    }
+
+    class DistanceComparator implements Comparator<Record> {
+        @Override
+        public int compare(Record o1, Record o2) {
+            // distance in increasing order
+            return (int)signum(o1.distance - o2.distance);
+        }
+    }
 
     static final String data =
     "17.47,0.00;17.46,17.46;17.44,34.89;17.42,52.31;17.40,69.72;" +

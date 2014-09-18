@@ -4,13 +4,14 @@
 
 import static java.lang.Math.PI;
 import static java.lang.Math.abs;
+import static java.lang.Math.sqrt;
 import static java.lang.StrictMath.*;
 
 /** a lot of global shit here
  * probably some util functions */
 
 public class AI {
-    public static final double COMPUTATION_BIAS = 1e-7;
+    public static final double COMPUTATION_BIAS = 1e-4;
 
 
     public static AIPoint unitVector(double angle) {
@@ -101,5 +102,19 @@ public class AI {
         return isValueBetween(-PI, PI, angle);
     }
 
+    public static AIPoint projection(AIPoint ofVector, AIPoint ontoVector) {
+        AIPoint result = new AIPoint(ontoVector);
+        result.scale(AIPoint.dotProduct(ofVector, ontoVector)
+                /AIPoint.dotProduct(ontoVector, ontoVector));
+        return result;
+    }
+
+    public static double projectionScalar(AIPoint ofVector, AIPoint ontoVector) {
+        return AIPoint.dotProduct(ofVector, ontoVector)/ontoVector.distance(AIPoint.ZERO);
+    }
+
+    public static double vectorLength(AIPoint p) {
+        return sqrt(p.dotProduct(p, p));
+    }
 }
 
