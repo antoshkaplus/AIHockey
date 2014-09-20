@@ -22,13 +22,13 @@ public class AIManager {
     public static final double SPEED_DOWN_FACTOR = 0.069;
     //
     public static final double DEGREE = PI / 180;
-    public static final double ANGLE_DEVIATION = 2 * DEGREE;
+    public static final double ANGLE_NATURAL_DEVIATION = 2 * DEGREE;
     public static final double ACCESS_DISTANCE = 120;
     public static final double ACCESS_ANGLE_BIAS = PI/12;
     // how much can turn for the pass
     public static final double PASS_ANGLE_BIAS = PI/3;
     public static final double MAX_TURN_ANGLE_PER_TICK = 3 * PI / 180;
-
+    public static final double PUCK_BINDING_RANGE = 55;
 
 
     private static final double PUCK_FRICTION_FACTOR = 0.02;
@@ -82,19 +82,24 @@ public class AIManager {
     AIRectangle bottomZone;
 
 
+    AIFriction friction = AIFriction.getInstance();
+
 
     AIRectangle rink;
     AIPoint center;
 
     // strategies
     Parabola parabola;
+    SideLineAttack sideLineAttack;
     PassScore passScore;
     StrikeScore strikeScore;
     CentralDefender centralDefender;
     SwingStrikeScore swingStrikeScore;
+    TakePuck takePuck;
+    StrikeDefence strikeDefence;
 
     Test test;
-    AIRole role;
+
     Map<Long, AIMove> moves;
 
     AIManager() {}
@@ -202,13 +207,16 @@ public class AIManager {
         }
 
         moves = new HashMap<Long, AIMove>();
-        role = new AIRole();
+
+        takePuck = new TakePuck();
+        strikeDefence = new StrikeDefence();
         test = new Test();
         passScore = new PassScore();
         strikeScore = new StrikeScore();
         parabola = new Parabola();
         centralDefender = new CentralDefender();
         swingStrikeScore = new SwingStrikeScore();
+        sideLineAttack = new SideLineAttack();
     }
 
     public boolean isInitialized() {
@@ -264,49 +272,61 @@ public class AIManager {
             initialize(game);
         }
 
+        updateTeammates();
+    }
+
+    private void updateTeammates() {
         for (AIHockeyist hockeyist : teammates) {
-            role.setHockeyist(hockeyist);
+
             AIMove move;
             if (puckOwner == null) {
-                move = role.onFreePuck();
-                if (hockeyist == farthest(puck.getLocation(), (Iterable)teammates)) {
-                    //move = centralDefender.onFreePack(hockeyist);
-                }
+                move = takePuck.move(hockeyist);
             } else if (puckOwner.isTeammate()) {
                 if (puckOwner == hockeyist) {
-
-                    move = strikeScore.move(hockeyist);
-                    move = swingStrikeScore.move(hockeyist);
+                    move = sideLineAttack.move(hockeyist);
                     if (!move.isValid()) {
-                        move = passScore.move(hockeyist);
-                        if (!move.isValid()) {
-                            move = parabola.move(hockeyist);
-                            if (!move.isValid()) {
-                                move = AIGo.goTo(hockeyist, myNetCenter);
-                            }
-                        }
+                        move = AIGo.to(hockeyist, myNetCenter);
                     }
+//                    move = strikeScore.move(hockeyist);
+//                    move = swingStrikeScore.move(hockeyist);
+//
+//                    if (!move.isValid()) {
+//                        move = passScore.move(hockeyist);
+//                        if (!move.isValid()) {
+//                            move = parabola.move(hockeyist);
+//                            if (!move.isValid()) {
+//                                move = AIGo.to(hockeyist, myNetCenter);
+//                            }
+//                        }
+//                    }
                 } else {
-                    move = role.onOffence();
-                    //if (!myZone.isInside(puck.getLocation())) move = centralDefender.onOffence(hockeyist);
+                    move = new AIMove();
                 }
             } else {
-                move = role.onDefence();
-                //move = centralDefender.onDefence(hockeyist);
+                move = strikeDefence.move(hockeyist);
+            }
+            // protection from permanent SWING
+            if (hockeyist != puckOwner && hockeyist.getLastAction() == ActionType.SWING) {
+                move.setAction(ActionType.CANCEL_STRIKE);
             }
             moves.put(hockeyist.getId(), move);
 
-            if (myGuy == -1 || myGuy == hockeyist.getId()) {
-                myGuy = hockeyist.getId();
-                move = test.onTestPuckFriction(hockeyist);
-                moves.put(myGuy, move);
-            } else {
-                move = role.onFreePuck();
-                moves.put(hockeyist.id, move);
-            }
+//            if (myGuy == -1 || myGuy == hockeyist.getId()) {
+//                myGuy = hockeyist.getId();
+//                move = test.onTestPuckFriction(hockeyist);
+//                moves.put(myGuy, move);
+//            } else {
+//                move = new AIMove();
+//                moves.put(hockeyist.id, move);
+//            }
+
+            ///System.out.println(game.getStrikeAngleDeviation());
         }
-        dataCollector.collectPuckData(puck, puckOwner);
+       // dataCollector.collectPuckData(puck, puckOwner);
     }
+
+
+
 
     public Move move(long id) {
         return moves.get(id);
@@ -323,18 +343,6 @@ public class AIManager {
 
     private boolean isPuckOwner(AIHockeyist hockeyist) {
         return hockeyist == puckOwner;
-    }
-
-    private AILine getHisNetSegment() {
-        return hisNetSegment;
-    }
-
-    private AILine getHisGoalieSegment() {
-        return hisGoalieSegment;
-    }
-
-    private AIHockeyist getHisGoalie() {
-        return hisGoalie;
     }
 
     /** returns -PI, PI orient orientAngle to strike
@@ -377,59 +385,112 @@ public class AIManager {
     double scoreAngle(AILine netSegment, AIPoint origin) {
         AIPoint bar = netSegment.farthestPoint(origin);
         AIPoint otherBar = otherBar(netSegment, bar);
-        double angle = scoreAngle(bar, otherBar, origin, 2*ANGLE_DEVIATION);
-        double barAngle = AI.orientAngle(AIPoint.difference(bar, origin));
-        double a = AI.orientAngle(angle, barAngle);
-        return AI.orientAngle(angle + a);
+        double angle = scoreAngle(bar, otherBar, origin, ANGLE_NATURAL_DEVIATION);
+//        double barAngle = AI.orientAngle(AIPoint.difference(bar, origin));
+//        double a = AI.orientAngle(angle, barAngle);
+//        return AI.orientAngle(angle + a);
+        return angle;
     }
 
+//
+//    class PuckAfterDistance {
+//        PuckAfterDistance(double ticks, double speed) {
+//            this.ticks = ticks;
+//            this.speed = speed;
+//        }
+//        double ticks;
+//        double speed;
+//    }
+//
+//    // should return speed and number of ticks
+//    PuckAfterDistance puckAfterDistance(double distance, double startSpeed) {
+//        double D = startSpeed*startSpeed - 2*distance*PUCK_FRICTION_FACTOR;
+//        if (D < 0) return null;
+//        double t_0 = (-startSpeed - sqrt(D))/(-PUCK_FRICTION_FACTOR);
+//        double t_1 = (-startSpeed + sqrt(D))/(-PUCK_FRICTION_FACTOR);
+//        // t_0 is when he goes back
+//        return new PuckAfterDistance(t_1, startSpeed - PUCK_FRICTION_FACTOR*t_1);
+//    }
 
-    class PuckAfterDistance {
-        PuckAfterDistance(double ticks, double speed) {
-            this.ticks = ticks;
-            this.speed = speed;
+//    // should make big table of values. like distance of stadium
+//    // [distance, speed]
+//    // also would be good to return end speed
+//    double puckTime(double distance, double startSpeed) {
+//        return distance/startSpeed;
+//    }
+
+//    // should be a table
+//    double hockeyistTime(double distance, double startSpeed) {
+//        return distance/startSpeed;
+//    }
+
+//    // how much distance will run before stopping
+//    double stopDistance(
+//            double startSpeed,
+//            double negativeAcceleration) {
+//        double t = -startSpeed/negativeAcceleration;
+//        if (t < 0) throw new RuntimeException("");
+//        return startSpeed*t + negativeAcceleration*t*t/2;
+//    }
+
+    boolean canAngleScore(AILine net, AIPoint source, double angle) {
+        double angleOne = AI.orientAngle(angle,
+                AI.orientAngle(AIPoint.difference(net.one, source)));
+        double angleTwo = AI.orientAngle(angle,
+                AI.orientAngle(AIPoint.difference(net.two, source)));
+        return abs(angleOne) >= ANGLE_NATURAL_DEVIATION && abs(angleTwo) >= ANGLE_NATURAL_DEVIATION &&
+               angleOne * angleTwo < 0;
+    }
+
+    // will strike right now
+    // should consider SWING thing
+    boolean canScoreStrike(AIHockeyist hockeyist) {
+        AILine net = null;
+        AIHockeyist goalie = null;
+        if (hockeyist.isTeammate()) {
+            net = hisNetSegment;
+            goalie = hisGoalie;
+        } else {
+            net = myNetSegment;
+            goalie = myGoalie;
         }
-        double ticks;
-        double speed;
-    }
-
-    // should return speed and number of ticks
-    PuckAfterDistance puckAfterDistance(double distance, double startSpeed) {
-        double D = startSpeed*startSpeed - 2*distance*PUCK_FRICTION_FACTOR;
-        if (D < 0) return null;
-        double t_0 = (-startSpeed - sqrt(D))/(-PUCK_FRICTION_FACTOR);
-        double t_1 = (-startSpeed + sqrt(D))/(-PUCK_FRICTION_FACTOR);
-        // t_0 is when he goes back
-        return new PuckAfterDistance(t_1, startSpeed - PUCK_FRICTION_FACTOR*t_1);
+        if (canAngleScore(net, hockeyist.getLocation(), hockeyist.getAngle())) {
+            // good angle
+            double startingSpeed = strikePuckSpeed(hockeyist);
+            AIPoint p = AI.unitVector(hockeyist.getAngle());
+            p.scale(PUCK_BINDING_RANGE);
+            return !canGoalieIntercept(goalie, p, hockeyist.getAngle(), startingSpeed);
+        }
+        return false;
     }
 
 
-
-    // should make big table of values. like distance of stadium
-    // [distance, speed]
-    // also would be good to return end speed
-    double puckTime(double distance, double startSpeed) {
-        return distance/startSpeed;
+    boolean canScorePass(AIHockeyist hockeyist, double passAngle) {
+        if (passAngle > PASS_ANGLE_BIAS || passAngle < -PASS_ANGLE_BIAS) return false;
+        AILine net = null;
+        AIHockeyist goalie = null;
+        if (hockeyist.isTeammate()) {
+            net = hisNetSegment;
+            goalie = hisGoalie;
+        } else {
+            net = myNetSegment;
+            goalie = myGoalie;
+        }
+        double angle = AI.orientAngle(hockeyist.getAngle() + passAngle);
+        if (canAngleScore(net, hockeyist.getLocation(), angle)) {
+            // good angle
+            double startingSpeed = passPuckSpeed(hockeyist, 1, passAngle);
+            AIPoint p = AI.unitVector(angle);
+            p.scale(PUCK_BINDING_RANGE);
+            p.translate(hockeyist.getLocation());
+            return !canGoalieIntercept(goalie, p, angle, startingSpeed);
+        }
+        return false;
     }
 
-
-
-
-    // should be a table
-    double hockeyistTime(double distance, double startSpeed) {
-        return distance/startSpeed;
-    }
-
-    // how much distance will run before stopping
-    double stopDistance(
-            double startSpeed,
-            double negativeAcceleration) {
-        double t = -startSpeed/negativeAcceleration;
-        if (t < 0) throw new RuntimeException("");
-        return startSpeed*t + negativeAcceleration*t*t/2;
-    }
 
     // put inside puck info
+    // should be careful with ticks - goalie can get better values
     boolean canGoalieIntercept(AIHockeyist goalie,
                                AIPoint location,
                                double angle,
@@ -446,11 +507,10 @@ public class AIManager {
             preGoalieSegment = myPreGoalieSegment;
         }
 
-
         AILine puckLine = new AILine(location, angle);
         // can't do anything if he is already on line
         if (puckLine.fromPointDistance(goalie.getLocation()) <
-                                    PUCK_RADIUS + HOCKEYIST_RADIUS) return true;
+                                    PUCK_RADIUS + HOCKEYIST_RADIUS ) return true;
         // before going into goalie zone
         if (!AI.isValueBetween(
                 goalieSegment.one.y,
@@ -460,29 +520,42 @@ public class AIManager {
             AIPoint point = goalieSegment.nearestPoint(location);
             AILine line = new AILine(point, 0);
             point = line.intersection(puckLine);
-            PuckAfterDistance params = puckAfterDistance(location.distance(point), startSpeed);
-            startSpeed = params.speed;
+            startSpeed = friction.puckAfterDistance(location.distance(point), startSpeed).speed;
+            //PuckAfterDistance params = puckAfterDistance(location.distance(point), startSpeed);
+            //startSpeed = params.speed;
             location = point;
         }
         // first consider goalie line as most dangerous
         AIPoint pointGoalie = puckLine.intersection(goalieSegment);
-        PuckAfterDistance params = puckAfterDistance(location.distance(pointGoalie), startSpeed);
+        //PuckAfterDistance params = puckAfterDistance(location.distance(pointGoalie), startSpeed);
+        double d = location.distance(pointGoalie);
+        AIFriction.SpeedTicks params = friction.puckAfterDistance(location.distance(pointGoalie), startSpeed);
         // need future goalie location
         double goalieY = goalie.getY() + params.ticks*GOALIE_SPEED * signum(pointGoalie.y - goalie.getY());
-        if (pointGoalie.distance(goalie.getX(), goalieY) < PUCK_RADIUS + HOCKEYIST_RADIUS ||
+        double pointGoalieDistance = pointGoalie.distance(goalie.getX(), goalieY);
+        if (pointGoalieDistance < PUCK_RADIUS + HOCKEYIST_RADIUS -20  ||
                 !AI.isValueBetween(goalieSegment.one.y, goalieSegment.two.y, goalieY)) return true;
         // now consider pre goalie line
         AIPoint pointPre = puckLine.intersection(preGoalieSegment);
-        params = puckAfterDistance(location.distance(pointPre), startSpeed);
+        //params = puckAfterDistance(location.distance(pointPre), startSpeed);
+        params = friction.puckAfterDistance(location.distance(pointPre), startSpeed);
         // need future goalie location
         double yPre = goalie.getY() + params.ticks * GOALIE_SPEED * signum(pointPre.y - goalie.getY());
-        if (pointPre.distance(goalie.getX(), yPre) < PUCK_RADIUS + HOCKEYIST_RADIUS ||
+        if (pointPre.distance(goalie.getX(), yPre) < PUCK_RADIUS + HOCKEYIST_RADIUS -20 ||
                 !AI.isValueBetween(goalieSegment.one.y, goalieSegment.two.y, goalieY)) return true;
-
         // could consider post goalie line location
         return false;
     }
 
+
+    double strikePuckSpeed(AIHockeyist hockeyist) {
+        int ticks = 0;
+        if (hockeyist.getLastAction() == ActionType.SWING) {
+            // only 20 effective ticks
+            ticks = min(20, currentTick - hockeyist.getLastActionTick());
+        }
+        return strikePuckSpeed(hockeyist, 0.75 + 0.25*ticks/20);
+    }
 
     double strikePuckSpeed(AIHockeyist hockeyist, double strikePower) {
         double speed = AIPoint.ZERO.distance(hockeyist.getSpeed());
@@ -512,7 +585,6 @@ public class AIManager {
         double two = unit.getLocation().distance(netSegment.two);
         return one < two ? netSegment.two : netSegment.one;
     }
-
 
     private AIUnit farthest(AIPoint source, Iterable<AIUnit> units) {
         double minDistance = Double.MIN_VALUE;
@@ -558,6 +630,7 @@ public class AIManager {
     }
 
 
+
     public class AIHockeyist extends AIUnit {
         private long id;
         private boolean teammate;
@@ -600,40 +673,76 @@ public class AIManager {
         }
     }
 
-    public class AIRole {
 
-        List<AIPoint> scoreLocations;
-        List<AIPoint> middleLocations;
-        AIHockeyist hockeyist;
+    private class SideLineAttack {
+        List<AIPoint> scoreLocations = new ArrayList<AIPoint>(2);
+        List<AIPoint> middleLocations = new ArrayList<AIPoint>(2);
+        private static final double LOCATION_RADIUS = 40;
 
-        void setHockeyist(AIHockeyist hockeyist) {
-            this.hockeyist = hockeyist;
-        }
-
-        public AIRole() {
-            scoreLocations = new ArrayList<AIPoint>(2);
-            middleLocations = new ArrayList<AIPoint>(2);
-            double dx = HOCKEYIST_RADIUS + 2*puck.getRadius() + 180;
+        public SideLineAttack() {
+            double dx = HOCKEYIST_RADIUS + 2 * puck.getRadius() + 180;
             double x = hisGoalie.getX() + signum(hisGoalie.getX() - he.getNetFront()) * dx;
-            scoreLocations.add(new AIPoint(x, he.getNetBottom() + 2*PUCK_RADIUS));
-            scoreLocations.add(new AIPoint(x, he.getNetTop() - 2*PUCK_RADIUS));
+            scoreLocations.add(new AIPoint(x, he.getNetBottom() + 2* PUCK_RADIUS));
+            scoreLocations.add(new AIPoint(x, he.getNetTop() - 2* PUCK_RADIUS));
 
-            middleLocations.add(new AIPoint(rink.getWidth()/2, rink.getTop() + HOCKEYIST_RADIUS));
-            middleLocations.add(new AIPoint(rink.getWidth()/2, rink.getBottom() - HOCKEYIST_RADIUS));
+            middleLocations.add(new AIPoint(center.x, rink.getTop() + HOCKEYIST_RADIUS));
+            middleLocations.add(new AIPoint(center.x, rink.getBottom() - HOCKEYIST_RADIUS));
         }
 
-        public AIMove onOffence() {
-            if (isPuckOwner(hockeyist)) {
-                return onOldAttack();
-                        //onOwnPuck();
-            } else {
-                AIUnit u = nearest(puck.getLocation(), (Iterable)opponents);
-                return AIGo.goTo(hockeyist, u.getLocation());
+        public AIMove move(AIHockeyist hockeyist) {
+            AIMove move = new AIMove();
+            if (!isPuckOwner(hockeyist)) {
+                move.setValid(false);
+                return move;
             }
+            AIPoint scoreLocation = nearest(hockeyist, scoreLocations);
+            if (hockeyist.distanceTo(scoreLocation) < LOCATION_RADIUS) {
+                double angle = scoreAngle(hisNetSegment, hockeyist.getLocation());
+                double passAngle = AI.orientAngle(hockeyist.getAngle(), angle);
+                if (canScorePass(hockeyist, passAngle)) {
+                    move.setAction(ActionType.PASS);
+                    move.setPassAngle(passAngle);
+                    move.setPassPower(1);
+                } else {
+                    move.setTurn(passAngle);
+                }
+                return move;
+            }
+            if (centralZone.isInside(hockeyist.getLocation()) &&
+                    hisZone.isInside(hockeyist.getLocation())) {
+                move.setValid(false);
+                return move;
+            }
+            AIPoint midLocation = nearest(hockeyist, middleLocations);
+            if (hockeyist.distanceTo(midLocation) < LOCATION_RADIUS) {
+                move = AIGo.to(hockeyist, scoreLocation);
+                return move;
+            }
+            if (myZone.isInside(hockeyist.getLocation())) {
+                move = AIGo.to(hockeyist, midLocation);
+                return move;
+            }
+            // somewhere in his zone
+            move = AIGo.to(hockeyist, scoreLocation);
+            return move;
         }
+    }
 
-        public AIMove onDefence() {
-            AIMove move = AIGo.goTo(hockeyist, puck.getLocation());
+
+    private class TakePuck {
+
+        public AIMove move(AIHockeyist hockeyist) {
+            AIMove move = AIGo.to(hockeyist, puck.getLocation());
+            if (hockeyist.isInRange(puck)) {
+                move.setAction(ActionType.TAKE_PUCK);
+            }
+            return move;
+        }
+    }
+
+    private class StrikeDefence {
+        public AIMove move(AIHockeyist hockeyist) {
+            AIMove move = AIGo.to(hockeyist, puck.getLocation());
             if (hockeyist.isInRange(puck)) {
                 move.setAction(ActionType.STRIKE);
             }
@@ -645,124 +754,85 @@ public class AIManager {
             }
             return move;
         }
-
-        public AIMove onFreePuck() {
-            AIMove move = AIGo.goTo(hockeyist, puck.getLocation());
-            if (hockeyist.isInRange(puck)) {
-                move.setAction(ActionType.TAKE_PUCK);
-            }
-            return move;
-        }
-
-        protected AIMove onOldAttack() {
-            AIMove move = new AIMove();
-            if (puckOwner == hockeyist) {
-                AIPoint teammate = nearest(hisNetSegment.one, (Iterable)teammates).getLocation();
-                // LOL
-                teammate.x -= HOCKEYIST_RADIUS;
-                double tAngle = hockeyist.angleTo(teammate);
-                if (abs(tAngle) < PASS_ANGLE_BIAS) {
-                    move = AIGo.goTo(hockeyist, teammate);
-
-                    move.setPassAngle(tAngle);
-                    move.setPassPower(1);
-                    move.setAction(ActionType.PASS);
-                } else {
-                    move = AIGo.goTo(hockeyist, teammate);
-                }
-                return move;
-
-//
-//                double selfAngle = hockeyist.getAngle();
-//                double angle;
-//                AIPoint bar = farthestBar(hockeyist, hisNetSegment);
-//                angle = scoreAngle(bar, otherBar(hisNetSegment, bar), hockeyist.getLocation(), 0.01);
-//                if (!canGoalieIntercept(hisGoalie, hisGoalieSegment, hockeyist.getLocation(), angle, passPuckSpeed(hockeyist, 1, AI.orientAngle(hockeyist.getAngle(), angle)))) {
-//                    double x = cos(angle) + hockeyist.getX();
-//                    double y = sin(angle) + hockeyist.getY();
-//                    double d = hockeyist.angleTo(x, y);
-//                    if (d < PASS_ANGLE_BIAS) {
-//                        move.setPassAngle(d);
-//                        move.setPassPower(1);
-//                        move.setAction(ActionType.PASS);
-//                    } else {
-//                        move.setTurn(d);
-//                        move.setSpeedUp(-1);
-//                    }
-//                    return move;
-//                }
-//                // find some cool location
-//                if (isInPosition(hockeyist, scoreLocations.get(0))) {
-//                    move.setTurn(hockeyist.angleTo(scoreLocations.get(1)));
-//                } else if (isInPosition(hockeyist, scoreLocations.get(1))) {
-//                    move.setTurn(hockeyist.angleTo(scoreLocations.get(0)));
-//                } else {
-//                    move.setTurn(hockeyist.angleTo(AI.nearestPoint(hockeyist.getLocation(), scoreLocations)));
-//                }
-//                move.setSpeedUp(1);
-//                return move;
-            } else {
-                return onOffence();
-            }
-        }
     }
 
     private class SwingStrikeScore {
-        List<AIPoint> turningLocations = new ArrayList<AIPoint>(2);
-        double noSpeedUpRadius = 40;
+        private List<AIPoint> turningLocations = new ArrayList<AIPoint>(2);
+        private static final double TURNING_RADIUS = 100;
+        private static final int SWING_TICKS = 10;
 
         SwingStrikeScore() {
             // top first
             turningLocations.add(new AIPoint(center.x, rink.origin.y));
             turningLocations.add(new AIPoint(center.x, rink.origin.y + rink.size.y));
-
-
         }
 
         AIMove move(AIHockeyist hockeyist) {
             AIMove move = new AIMove();
             if (puckOwner != hockeyist ||
                     (hisZone.isInside(hockeyist.getLocation()) &&
-                     centralZone.isInside(hockeyist.getLocation())) ||
-                        hisNoScoreZone.isInside(hockeyist.getLocation())) {
+                            centralZone.isInside(hockeyist.getLocation())) ||
+                    hisNoScoreZone.isInside(hockeyist.getLocation())) {
                 if (hockeyist.getLastAction() == ActionType.SWING) {
                     move.setAction(ActionType.CANCEL_STRIKE);
                     return move;
                 } else {
-                    return AIGo.goTo(hockeyist, center);
+                    return AIGo.to(hockeyist, center);
                 }
 
             }
-            if (myZone.isInside(hockeyist.getLocation())) {
-                move = AIGo.goTo(hockeyist, nearest(hockeyist, turningLocations));
+
+            AIPoint turningLocation = nearest(hockeyist, turningLocations);
+            if (myZone.isInside(hockeyist.getLocation()) &&
+                    turningLocation.distance(hockeyist.getLocation()) > TURNING_RADIUS) {
+                move = AIGo.to(hockeyist, turningLocation);
+                return move;
             }
-            if (hisZone.isInside(hockeyist.getLocation())) {
-                AIPoint bar = farthestBar(hockeyist, hisNetSegment);
-                double angle = AI.orientAngle(hockeyist.getAngle(), scoreAngle(hisNetSegment, hockeyist.getLocation()));
-                move.setTurn(angle);
 
-                double speedAngle = hockeyist.angleTo(AIPoint.sum(hockeyist.getLocation(), hockeyist.getSpeed()));
-                if (abs(angle) < 0.01 && (hockeyist.getSpeedScalar() < 0.04 || abs(speedAngle) < 0.01)) {
-                    move.setAction(ActionType.SWING);
-
-                    if (hockeyist.getLastAction() == ActionType.SWING && !canGoalieIntercept(
-                            hisGoalie,
-                            hockeyist.getLocation(),
-                            hockeyist.getAngle(),
-                            strikePuckSpeed(hockeyist, 0.75 + 0.25*hockeyist.lastActionTick/20))) {
-                        move.setAction(ActionType.STRIKE);
-                    }
-                } else {
-                    move.setAction(ActionType.CANCEL_STRIKE);
+            // should be positive
+            double speedTurnAngle = AI.angle(hockeyist.getSpeed(), AI.unitVector(hockeyist.getAngle()));
+            // those are oriented
+            double scoreAngle = scoreAngle(hisNetSegment, hockeyist.getNextLocation());
+            double turnAngle = AI.orientAngle(hockeyist.getAngle(), scoreAngle);
+            if (hockeyist.distanceTo(turningLocation) < TURNING_RADIUS) {
+                move.setTurn(turnAngle);
+                if (abs(turnAngle) < DEGREE &&
+                        (hockeyist.getSpeed().scalar() < 0.7 || speedTurnAngle < DEGREE)) {
+                    move.setSpeedUp(1);
                 }
+                return move;
+            }
+
+            // now i should be in his zone probably
+//            if (!canScoreStrike(hockeyist) && hisZone.isInside(hockeyist.getLocation())) {
+//                move.setValid(false);
+//                return move;
+//            }
+            move.setSpeedUp(1);
+
+            AILine lineBound = new AILine(
+                    myNetSegment.nearestPoint(hockeyist.getLocation()),
+                    hisNetSegment.nearestPoint(hockeyist.getLocation()));
+            AILine lineMove = new AILine(hockeyist.getLocation(), hockeyist.getAngle());
+            AIPoint endPoint = lineBound.intersection(lineMove);
+            double dist = hockeyist.distanceTo(endPoint);
+            AIFriction friction = AIFriction.getInstance();
+            if (friction.hockeyistAfterTicks(SWING_TICKS + 5, hockeyist.getSpeedScalar()).distance > dist) {
+                // time to swing
+                move.setAction(ActionType.SWING);
+            }
+
+            // also should be able to have good angle... goalie can't stand a chance
+            if (hockeyist.getLastAction() == ActionType.SWING &&
+                    currentTick - hockeyist.getLastActionTick() > SWING_TICKS) {
+                move.setAction(ActionType.STRIKE);
             }
             return move;
         }
-
     }
 
-    private class StrikeScore {
 
+    private class StrikeScore {
 
         AIMove move(AIHockeyist hockeyist) {
             AIMove move = new AIMove();
@@ -770,21 +840,9 @@ public class AIManager {
                 move.setValid(false);
                 return move;
             }
-            AIPoint bar = farthestBar(hockeyist, hisNetSegment);
-            double angleForGoalie = scoreAngle(
-                    bar,
-                    otherBar(hisNetSegment, bar),
-                    hockeyist.getLocation(),
-                    2*ANGLE_DEVIATION);
-            double barAngle = AI.orientAngle(AIPoint.difference(bar, hockeyist.getLocation()));
-            double a = AI.orientAngle(barAngle, angleForGoalie);
-            double angleForHockeyist = AI.orientAngle(barAngle + a/2);
-            if (abs(AI.orientAngle(angleForHockeyist, hockeyist.getAngle())) < DEGREE) {
-                if (!canGoalieIntercept(hisGoalie,
-                        hockeyist.getLocation(), angleForGoalie, strikePuckSpeed(hockeyist, 0.75))) {
-                    move.setAction(ActionType.STRIKE);
-                    return move;
-                }
+            if (canScoreStrike(hockeyist)) {
+                move.setAction(ActionType.STRIKE);
+                return move;
             }
             move.setValid(false);
             return move;
@@ -806,7 +864,7 @@ public class AIManager {
             double angleForGoalie = scoreAngle(bar,
                     otherBar(hisNetSegment, bar),
                     hockeyist.getLocation(),
-                    2*ANGLE_DEVIATION);//2*ANGLE_DEVIATION);
+                    2*ANGLE_NATURAL_DEVIATION);//2*ANGLE_DEVIATION);
             double barAngle = AI.orientAngle(AIPoint.difference(bar, hockeyist.getLocation()));
             double a = AI.orientAngle(barAngle, angleForGoalie);
             double angleForHockeyist = AI.orientAngle(barAngle + a/2);
@@ -903,7 +961,7 @@ public class AIManager {
             AIMove move = new AIMove();
             if (myZone.isInside(hockeyist.getLocation())) {
                 // would be find to have this with angle
-                return AIGo.goTo(hockeyist, nearest(hockeyist, enterLocations));
+                return AIGo.to(hockeyist, nearest(hockeyist, enterLocations));
             } else {
                 // if hockeyist inside no score zone or to far from control point we should withdraw
                 if (hisNoScoreZone.isInside(hockeyist.getLocation()) || centralZone.isInside(hockeyist.getLocation())) {
@@ -923,13 +981,13 @@ public class AIManager {
                         hisNetCenter.x,
                         scoreLocations.get(0).x,
                         hockeyist.getX())) {
-                    return AIGo.goTo(hockeyist, bar);
+                    return AIGo.to(hockeyist, bar);
                 }
                 ArrayList<AIPoint> locations = new ArrayList<AIPoint>(2);
                 locations.add(new AIPoint(x, getBottomY(x)));
                 locations.add(new AIPoint(x, getTopY(x)));
                 AIPoint aim = nearest(hockeyist, locations);
-                return AIGo.goTo(hockeyist, aim);
+                return AIGo.to(hockeyist, aim);
             }
 
         }
@@ -938,7 +996,7 @@ public class AIManager {
     private class CentralDefender {
 //        AIMove onOffence(AIHockeyist hockeyist) {
 //            double angle = AI.orientAngle(AIPoint.difference(puck.getLocation(), center));
-//            return AIGo.goToStop(
+//            return AIGo.to.goToStop(
 //                    hockeyist,
 //                    center,
 //                    angle);
@@ -947,7 +1005,7 @@ public class AIManager {
 //        AIMove onFreePack(AIHockeyist hockeyist) {
 //            if (hisNoScoreZone.isInside(puck.getLocation())) {
 //                double angle = AI.orientAngle(AIPoint.difference(puck.getLocation(), center));
-//                return AIGo.goToStop(
+//                return AIGo.to.goToStop(
 //                        hockeyist,
 //                        center,
 //                        angle);
@@ -959,7 +1017,7 @@ public class AIManager {
 //        AIMove onDefence(AIHockeyist hockeyist) {
 //            if (offensiveZone.isInside(puck.getLocation())) {
 //                double angle = AI.orientAngle(AIPoint.difference(puck.getLocation(), center));
-//                return AIGo.goToStop(
+//                return AIGo.to.goToStop(
 //                        hockeyist,
 //                        center,
 //                        angle);
@@ -967,12 +1025,6 @@ public class AIManager {
 //                return role.onDefence();
 //            }
 //        }
-    }
-
-
-
-    private class Circle {
-
     }
 
     private class Test {
@@ -990,7 +1042,7 @@ public class AIManager {
                         visitedOrigin = true;
                     }
                 } else {
-                    move = AIGo.goTo(hockeyist, rink.origin);
+                    move = AIGo.to(hockeyist, rink.origin);
                 }
             } else if (visitedOrigin) {
                 if (hockeyist.getX() > (rink.getLeft() + rink.getRight())/2) {
@@ -1003,13 +1055,13 @@ public class AIManager {
         }
 
         AIMove onTestGoStop(AIHockeyist hockeyist) {
-            return AIGo.goToStop(hockeyist, AIPoint.sum(rink.origin, new AIPoint(200, 400)));
+            return AIGo.to(hockeyist, AIPoint.sum(rink.origin, new AIPoint(200, 400)));
         }
 
         AIMove onTestGoToStopWithAngle(AIHockeyist hockeyist) {
             AIPoint location = new AIPoint(rink.origin.x + 6*HOCKEYIST_RADIUS + PUCK_RADIUS, hisNetSegment.one.y + PUCK_RADIUS);
             double angle = AI.orientAngle(AIPoint.difference(farthestBar(hockeyist, hisNetSegment), location)) - 0.02;
-            AIMove move = AIGo.goToStop(hockeyist, location);
+            AIMove move = AIGo.to(hockeyist, location);
             if (hockeyist.isInRange(puck)) {
                 move.setAction(ActionType.STRIKE);
                 return move;
@@ -1044,7 +1096,8 @@ public class AIManager {
             }
             if (visitedOrigin && hockeyist.getX() > center.x) {
                 move.setSpeedUp(0);
-                if (hockeyist.getSpeedScalar() > 0.009) {
+                if (hockeyist.getSpeedScalar() > 0.005) {
+
                     System.out.println(String.format("%.2f,%.2f;", hockeyist.getSpeedScalar(), hockeyist.distanceTo(center.x, hockeyist.getY())));
                 }
             }
@@ -1057,9 +1110,12 @@ public class AIManager {
             if (hockeyist == puckOwner) {
                 if (hockeyist.distanceTo(rink.origin) < 3 * HOCKEYIST_RADIUS) {
                     if (hockeyist.getSpeedScalar() < 0.04) {
-                        double angle = hockeyist.angleTo(AIPoint.sum(rink.origin, rink.size));
+                        AIPoint target = new AIPoint(rink.getRight(), hockeyist.getY());
+                        // AIPoint.sum(rink.origin, rink.size)
+                        double angle = hockeyist.angleTo(target);
                         if (abs(angle) < 0.01) {
-                            if (hockeyist.getLastAction() == ActionType.SWING && currentTick - hockeyist.getLastActionTick() > 20) {
+                            //move.setAction(ActionType.STRIKE);
+                            if (hockeyist.getLastAction() == ActionType.SWING && currentTick - hockeyist.getLastActionTick() > 1) {
                                 move.setAction(ActionType.STRIKE);
                             } else {
                                 move.setAction(ActionType.SWING);
@@ -1071,12 +1127,11 @@ public class AIManager {
                         move.setSpeedUp(0);
                     }
                 } else {
-                    move = AIGo.goTo(hockeyist, rink.origin);
-                    move = AIGo.goTo(hockeyist, rink.origin);
+                    move = AIGo.to(hockeyist, rink.origin);
                 }
             } else {
-                move = AIGo.goTo(hockeyist, puck.getLocation());
-                move = AIGo.goTo(hockeyist, puck.getLocation());
+                if (puck.getSpeedScalar() > 1) return  new AIMove();
+                move = AIGo.to(hockeyist, puck.getLocation());
                 if (hockeyist.isInRange(puck)) {
                     move.setAction(ActionType.TAKE_PUCK);
                 }
@@ -1084,5 +1139,4 @@ public class AIManager {
             return move;
         }
     }
-
 }

@@ -15,8 +15,8 @@ import static java.lang.Math.*;
 public class AIFriction {
 
     // computing every tick
-    private ArrayList<Record> hockeyistFriction = new ArrayList<Record>();
-    private ArrayList<Record> puckFriction = new ArrayList<Record>();
+    private List<Record> hockeyistFriction;
+    private List<Record> puckFriction;
 
     private DistanceComparator distanceComparator = new DistanceComparator();
     private SpeedComparator speedComparator = new SpeedComparator();
@@ -26,15 +26,49 @@ public class AIFriction {
     private static AIFriction instance = null;
 
     private AIFriction() {
-        String[] speedDistance = hockeyistData.split(";");
-        for (String s : speedDistance) {
-            int i = s.indexOf(',');
-            double speed = Double.parseDouble(s.substring(0, i));
-            double distance = Double.parseDouble(s.substring(i+1));
-            hockeyistFriction.add(new Record(distance, speed));
-        }
-        hockeyistFriction.add(new Record(hockeyistFriction.get(hockeyistFriction.size()-1).distance, 0));
+        hockeyistFriction = readRecords(hockeyistData);
+        puckFriction = readMultiRecords(puckData);
     }
+
+    Record parseRecord(String str) {
+        int i = str.indexOf(',');
+        double speed = Double.parseDouble(str.substring(0, i));
+        double distance = Double.parseDouble(str.substring(i+1));
+        return new Record(distance, speed);
+    }
+
+    // be careful with last elements ';'
+    List<Record> readRecords(String data) {
+        String[] speedDistance = data.split(";");
+        List<Record> records = new ArrayList<Record>(speedDistance.length + 1);
+        for (String s : speedDistance) {
+            records.add(parseRecord(s));
+        }
+        records.add(new Record(records.get(records.size()-1).distance, 0));
+        return records;
+    }
+
+    List<Record> readMultiRecords(String[] data) {
+        List<Record> records = new ArrayList<Record>();
+        double distance = 0;
+        for (int k = 0; k < data.length; ++k) {
+            String[] s = data[k].split(";");
+            if (k != 0) {
+                distance = records.get(records.size()-1).distance;
+            }
+            for (int i = 0; i < s.length; ++i) {
+                Record r = parseRecord(s[i]);
+                if (i == 0) {
+                    distance -= r.distance;
+                } else {
+                    r.distance += distance;
+                    records.add(r);
+                }
+            }
+        }
+        return records;
+    }
+
 
     public static AIFriction getInstance() {
         if (instance == null) {
@@ -43,7 +77,7 @@ public class AIFriction {
         return instance;
     }
 
-    RecordTicks getRecordBySpeed(List<Record> friction, double speed) {
+    private RecordTicks getRecordBySpeed(List<Record> friction, double speed) {
         RecordTicks r = new RecordTicks();
         bufferRecord.speed = speed;
         int i = Collections.binarySearch(friction, bufferRecord, speedComparator);
@@ -72,7 +106,7 @@ public class AIFriction {
     }
 
     // before uing it you need to get distance and add, subtract from it
-    RecordTicks getRecordByDistance(List<Record> friction, double distance) {
+    private RecordTicks getRecordByDistance(List<Record> friction, double distance) {
         RecordTicks r = new RecordTicks();
         bufferRecord.distance = distance;
         int i = Collections.binarySearch(friction, bufferRecord, distanceComparator);
@@ -82,6 +116,9 @@ public class AIFriction {
             int k_1 = i;
             if (k_0 < 0) {
                 k_0 = 0;
+            }
+            if (k_1 == friction.size()) {
+                k_1 = k_0;
             }
             Record r_0 = friction.get(k_0);
             Record r_1 = friction.get(k_1);
@@ -96,13 +133,21 @@ public class AIFriction {
         return r;
     }
 
-    // returns speed and ticks
-    SpeedTicks hockeyistAfterDistance(double distance, double startingSpeed) {
-        RecordTicks r = getRecordBySpeed(hockeyistFriction, startingSpeed);
+    private SpeedTicks afterDistance(List<Record> friction, double distance, double startingSpeed) {
+        RecordTicks r = getRecordBySpeed(friction, startingSpeed);
         // add current distance to one that we looking
         double t = r.tick;
-        r = getRecordByDistance(hockeyistFriction, r.record.distance + distance);
+        r = getRecordByDistance(friction, r.record.distance + distance);
         return new SpeedTicks(r.record.speed, r.tick - t);
+    }
+
+    // returns speed and ticks
+    SpeedTicks hockeyistAfterDistance(double distance, double startingSpeed) {
+        return afterDistance(hockeyistFriction, distance, startingSpeed);
+    }
+
+    SpeedTicks puckAfterDistance(double distance, double startingSpeed) {
+        return afterDistance(puckFriction, distance, startingSpeed);
     }
 
     // returns distance and speed
@@ -124,6 +169,10 @@ public class AIFriction {
                 hockeyistFriction.get(hockeyistFriction.size()-1).distance - r.record.distance,
                 hockeyistFriction.size() - r.tick);
     }
+
+    //DistanceTicks hockeyistStopDistance
+
+
 
     class DistanceTicks {
         DistanceTicks() {}
@@ -201,7 +250,7 @@ public class AIFriction {
         }
     }
 
-    static final String data =
+    static final String[] puckData = {
     "17.47,0.00;17.46,17.46;17.44,34.89;17.42,52.31;17.40,69.72;" +
     "17.39,87.10;17.37,104.47;17.35,121.82;17.33,139.15;17.32,156.47;" +
     "17.30,173.77;17.28,191.05;17.26,208.32;17.25,225.56;17.23,242.79;" +
@@ -214,11 +263,54 @@ public class AIFriction {
     "16.70,768.45;16.69,785.14;16.67,801.81;16.65,818.47;16.64,835.10;" +
     "16.62,851.72;16.60,868.33;16.59,884.91;16.57,901.48;16.55,918.04;" +
     "16.54,934.57;16.52,951.10;16.50,967.60;16.49,984.09;16.47,1000.56;" +
-    "16.45,1017.01;16.44,1033.45;16.42,1049.87;";
+    "16.45,1017.01;16.44,1033.45;16.42,1049.87",
 
-    //17.47,0.00;17.46,17.46;17.44,34.89;17.42,52.32;17.40,69.72;17.39,87.10;17.37,104.47;17.35,121.83;17.33,139.16;17.32,156.48;17.30,173.78;17.28,191.06;17.26,208.32;17.25,225.57;17.23,242.80;17.21,260.01;17.20,277.21;17.18,294.39;17.16,311.55;17.14,328.69;17.13,345.82;17.11,362.93;17.09,380.02;17.08,397.10;17.06,414.16;17.04,431.20;17.02,448.22;17.01,465.23;16.99,482.22;16.97,499.20;16.96,516.15;16.94,533.09;16.92,550.02;16.91,566.92;16.89,583.81;16.87,600.68;16.86,617.54;16.84,634.38;16.82,651.20;16.80,668.00;16.79,684.79;16.77,701.56;16.75,718.32;16.74,735.05;16.72,751.77;16.70,768.48;16.69,785.17;16.67,801.84;16.65,818.49;16.64,835.13;16.62,851.75;16.60,868.35;16.59,884.94;16.57,901.51;16.55,918.06;16.54,934.60;16.52,951.12;16.50,967.63;16.49,984.12;16.47,1000.59;16.46,1017.04;16.44,1033.48;16.42,1049.91;
+    "16.42,0.00;16.40,16.40;16.39,32.79;16.37,49.16;16.36,65.52;16.34,81.86;" +
+    "16.32,98.18;16.31,114.49;16.29,130.78;16.27,147.05;16.26,163.31;" +
+    "16.24,179.55;16.22,195.77;16.21,211.98;16.19,228.17;16.18,244.35;" +
+    "16.16,260.51;16.14,276.65;16.13,292.78;16.11,308.89;16.10,324.99;" +
+    "16.08,341.07;16.06,357.13;16.05,373.18;16.03,389.21;16.02,405.22;" +
+    "16.00,421.22;15.98,437.20;15.97,453.17;15.95,469.12;15.94,485.06;" +
+    "15.92,500.98;15.90,516.88;15.89,532.77;15.87,548.64;15.86,564.49;" +
+    "15.84,580.33;15.82,596.16;15.81,611.97;15.79,627.76;15.78,643.53;" +
+    "15.76,659.30;15.74,675.04;15.73,690.77;15.71,706.48;15.70,722.18;" +
+    "15.68,737.86;15.67,753.53;15.65,769.18;15.64,784.81;15.62,800.43;" +
+    "15.60,816.04;15.59,831.63;15.57,847.20;15.56,862.76;15.54,878.30;" +
+    "15.53,893.82;15.51,909.33;15.49,924.83;15.48,940.31;15.46,955.77",
 
-    //17.72,0.00;17.71,17.71;17.69,35.39;17.67,53.06;17.65,70.72;17.63,88.35;17.62,105.97;17.60,123.57;17.58,141.15;17.56,158.71;17.55,176.26;17.53,193.79;17.51,211.30;17.49,228.80;17.48,246.27;17.46,263.73;17.44,281.17;17.42,298.60;17.41,316.01;17.39,333.39;17.37,350.77;17.35,368.12;17.34,385.46;17.32,402.78;17.30,420.08;17.29,437.37;17.27,454.64;17.25,471.89;17.23,489.12;17.22,506.34;17.20,523.54;17.18,540.72;17.16,557.88;17.15,575.03;17.13,592.16;17.11,609.27;17.10,626.37;17.08,643.45;17.06,660.51;17.05,677.56;17.03,694.58;17.01,711.60;16.99,728.59;16.98,745.57;16.96,762.53;16.94,779.47;16.93,796.40;16.91,813.31;16.89,830.20;16.88,847.07;16.86,863.93;16.84,880.77;16.82,897.60;16.81,914.41;16.79,931.20;16.77,947.97;16.76,964.73;16.74,981.47;16.72,998.19;16.71,1014.90;16.69,1031.59;16.67,1048.27;16.66,1064.92;
+    "15.46,77.45;15.44,92.89;15.43,108.32;15.41,123.73;15.40,139.13;15.38,154.51;" +
+    "15.37,169.88;15.35,185.23;15.34,200.56;15.32,215.88;15.30,231.19;15.29,246.48;" +
+    "15.27,261.75;15.26,277.01;15.24,292.25;15.23,307.48;15.21,322.70;15.20,337.89;" +
+    "15.18,353.08;15.17,368.24;15.15,383.40;15.14,398.53;15.12,413.66;15.11,428.76;" +
+    "15.09,443.85;15.08,458.93;15.06,473.99;15.05,489.04;15.03,504.07;15.02,519.09;" +
+    "15.00,534.09;14.99,549.08;14.97,564.05;14.96,579.00;14.94,593.95;14.93,608.87;" +
+    "14.91,623.78;14.90,638.68;14.88,653.56;14.87,668.43;14.85,683.28;14.84,698.12;" +
+    "14.82,712.94",
+
+    "14.82,89.12;14.80,103.92;14.79,118.71;14.77,133.48;14.76,148.24;14.74,162.98;" +
+    "14.73,177.71;14.71,192.43;14.70,207.12;14.68,221.81;14.67,236.48;14.65,251.13;" +
+    "14.64,265.77;14.63,280.40;14.61,295.01;14.60,309.60;14.58,324.18;14.57,338.75;" +
+    "14.55,353.30;14.54,367.84;14.52,382.36;14.51,396.87;14.49,411.37;14.48,425.85;" +
+    "14.47,440.31;14.45,454.76;14.44,469.20;14.42,483.62;14.41,498.03;14.39,512.42;" +
+    "14.38,526.80;14.36,541.16;14.35,555.51;14.34,569.85;14.32,584.17;14.31,598.48;" +
+    "14.29,612.77;14.28,627.05;14.26,641.31;14.25,655.56;14.24,669.80;14.22,684.02;" +
+    "14.21,698.22;14.19,712.42;14.18,726.60;14.16,740.76;14.15,754.91;14.14,769.05;" +
+    "14.12,783.17;14.11,797.28",
+
+    "14.11,458.59;14.10,472.68;14.08,486.77;14.07,500.83;14.05,514.89;14.04,528.93;" +
+    "14.03,542.95;14.01,556.96;14.00,570.96;13.98,584.94;13.97,598.91;13.96,612.87;" +
+    "13.94,626.81;13.93,640.74;13.91,654.65;13.90,668.55;13.89,682.44;13.87,696.31;" +
+    "13.86,710.17;13.84,724.01;13.83,737.84",
+
+    "13.83,222.98;13.82,236.80;13.80,250.60;13.79,264.39;13.78,278.17;13.76,291.93;" +
+    "13.75,305.68;13.74,319.42;13.72,333.14;13.71,346.85;13.69,360.54;13.68,374.22;" +
+    "13.67,387.89;13.65,401.54;13.64,415.18;13.63,428.81;13.61,442.42;13.60,456.02;" +
+    "13.59,469.60;13.57,483.18;13.56,496.73;13.54,510.28;13.53,523.81;13.52,537.33;" +
+    "13.50,550.83;13.49,564.32;13.48,577.80;13.46,591.26;13.45,604.71;13.44,618.15;" +
+    "13.42,631.57;13.41,644.98;13.40,658.37;13.38,671.76;13.37,685.13;13.36,698.48;" +
+    "13.34,711.83;13.33,725.15;13.32,738.47;13.30,751.77;13.29,765.06;13.28,778.34;" +
+    "13.26,791.60"};
+
 
     static final String hockeyistData =
             "5.30,2.69;\n" +
@@ -536,7 +628,7 @@ public class AIFriction {
             "0.01,261.69;\n" +
             "0.01,261.70;\n" +
             "0.01,261.71;\n" +
-            "0.01,261.71;";
+            "0.01,261.71";
 
 
 

@@ -12,8 +12,8 @@ public class AIRectangle {
         size.set(width, height);
     }
     AIRectangle(AIPoint origin, AIPoint size) {
-        this.origin = (AIPoint)origin.clone();
-        this.size = (AIPoint)size.clone();
+        this.origin = new AIPoint(origin);
+        this.size = new AIPoint(size);
     }
 
     AIRectangle(AIRectangle rect) {

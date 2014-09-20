@@ -36,7 +36,7 @@ public class AIDataCollector {
     void collectPuckData(AIPuck puck, AIManager.AIHockeyist puckOwner) {
         if (puckOwner == null) {
             if (locations.size() < 2) {
-                locations.add((AIPoint)puck.getLocation().clone());
+                locations.add(new AIPoint(puck.getLocation()));
                 speed.add(puck.getSpeedScalar());
             } else {
                 // lets see where the point is and etc
@@ -67,7 +67,7 @@ public class AIDataCollector {
     }
 
     void addState(AIPuck puck) {
-        locations.add((AIPoint)puck.getLocation().clone());
+        locations.add(new AIPoint(puck.getLocation()));
         speed.add(puck.getSpeedScalar());
     }
 

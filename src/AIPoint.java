@@ -40,15 +40,19 @@ class AIPoint implements Cloneable {
         x += dx;
         y += dy;
     }
+    void translate(AIPoint p) {
+        x += p.x;
+        y += p.y;
+    }
 
     void set(double x, double y) {
         this.x = x;
         this.y = y;
     }
 
-    @Override
-    protected Object clone() {
-        return new AIPoint(x, y);
+    AIPoint unitVector() {
+        double d = scalar();
+        return new AIPoint(x/d, y/d);
     }
 
     static double dotProduct(AIPoint p_0, AIPoint p_1) {
