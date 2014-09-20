@@ -13,4 +13,6 @@ public class AIMove extends Move {
     void setValid(boolean valid) {
         this.valid = valid;
     }
+
+
 }

@@ -44,6 +44,10 @@ public class AI {
         return target;
     }
 
+    public static double orientAngle(AIPoint v_source, AIPoint v_target) {
+        return orientAngle(orientAngle(v_source), orientAngle(v_target));
+    }
+
     // orientAngle between two vectors [0, PI]
     public static double angle(AIPoint v_one, AIPoint v_two) {
         return angle(v_one, AIPoint.ZERO, v_two);

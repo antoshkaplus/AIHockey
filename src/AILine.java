@@ -35,7 +35,7 @@ class AILine implements Cloneable {
 
     @Override
     protected Object clone() {
-        AILine line = new AILine((AIPoint)one.clone(), (AIPoint)two.clone());
+        AILine line = new AILine(new AIPoint(one), new AIPoint(two));
         return line;
     }
 

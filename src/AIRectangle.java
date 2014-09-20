@@ -12,8 +12,8 @@ public class AIRectangle {
         size.set(width, height);
     }
     AIRectangle(AIPoint origin, AIPoint size) {
-        this.origin = (AIPoint)origin.clone();
-        this.size = (AIPoint)size.clone();
+        this.origin = new AIPoint(origin);
+        this.size = new AIPoint(size);
     }
 
     AIRectangle(AIRectangle rect) {
@@ -46,6 +46,15 @@ public class AIRectangle {
     }
     double getRight() {
         return origin.x + size.x;
+    }
+
+    static AIRectangle intersection(AIRectangle rect_0, AIRectangle rect_1) {
+        AIRectangle r = new AIRectangle();
+        r.origin = AIPoint.max(rect_0.origin, rect_1.origin);
+        r.size.set(
+                Math.min(rect_0.getRight(), rect_1.getRight()) - r.origin.x,
+                Math.min(rect_0.getBottom(), rect_1.getBottom()) - r.origin.y);
+        return r;
     }
 
 //
