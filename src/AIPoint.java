@@ -1,3 +1,7 @@
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.Collection;
+
 import static java.lang.StrictMath.*;
 
 class AIPoint implements Cloneable {
@@ -50,13 +54,9 @@ class AIPoint implements Cloneable {
         this.y = y;
     }
 
-    AIPoint unitVector() {
-        double d = scalar();
-        return new AIPoint(x/d, y/d);
-    }
-
     static AIPoint unit(AIPoint p) {
-        return p.unitVector();
+        double d = p.scalar();
+        return new AIPoint(p.x/d, p.y/d);
     }
     static double dotProduct(AIPoint p_0, AIPoint p_1) {
         return p_0.x*p_1.x + p_0.y*p_1.y;
@@ -72,6 +72,28 @@ class AIPoint implements Cloneable {
     }
     static AIPoint min(AIPoint p_0, AIPoint p_1) {
         return new AIPoint(Math.min(p_0.x, p_1.x), Math.min(p_0.y, p_1.y));
+    }
+    static AIPoint middle(AIPoint p_0, AIPoint p_1) {
+        AIPoint mid = AIPoint.sum(p_0, p_1);
+        mid.scale(0.5);
+        return mid;
+    }
+
+    public AIPoint nearestPoint(Collection<AIPoint> ps) {
+        return Collections.min(ps, new DistanceComparator(this));
+    }
+
+    static class DistanceComparator implements Comparator<AIPoint> {
+        AIPoint origin;
+
+        DistanceComparator(AIPoint origin) {
+            this.origin = origin;
+        }
+
+        @Override
+        public int compare(AIPoint o1, AIPoint o2) {
+            return (int)signum(origin.distance(o1) - origin.distance(o2));
+        }
     }
 
 }

@@ -105,7 +105,7 @@ public class AIFriction {
         return r;
     }
 
-    // before uing it you need to get distance and add, subtract from it
+    // before using it you need to get distance and add, subtract from it
     private RecordTicks getRecordByDistance(List<Record> friction, double distance) {
         RecordTicks r = new RecordTicks();
         bufferRecord.distance = distance;

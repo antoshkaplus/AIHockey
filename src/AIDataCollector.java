@@ -33,7 +33,7 @@ public class AIDataCollector {
         return hockeyistWriter;
     }
 
-    void collectPuckData(AIPuck puck, AIManager.AIHockeyist puckOwner) {
+    void collectPuckData(AIPuck puck, AIHockeyist puckOwner) {
         if (puckOwner == null) {
             if (locations.size() < 2) {
                 locations.add(new AIPoint(puck.getLocation()));

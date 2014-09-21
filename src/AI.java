@@ -12,12 +12,11 @@ import static java.lang.StrictMath.*;
 
 public class AI {
     public static final double COMPUTATION_BIAS = 1e-4;
+    public static final double DEGREE = PI / 2;
 
-
-    public static AIPoint unitVector(double angle) {
+    public static AIPoint unit(double angle) {
         return new AIPoint(cos(angle), sin(angle));
     }
-
 
     // if oriented orientAngle needed please use world orientedAngle
 
@@ -30,6 +29,12 @@ public class AI {
         // 0, PI
         return Math.acos((a * a + b * b - c * c) / (2 * a * b));
     }
+
+    // angle between two vectors [0, PI]
+    public static double angle(AIPoint v_one, AIPoint v_two) {
+        return angle(v_one, AIPoint.ZERO, v_two);
+    }
+
 
     // oriented orientAngle
     public static double orientAngle(AIPoint p) {
@@ -48,11 +53,6 @@ public class AI {
         return orientAngle(orientAngle(v_source), orientAngle(v_target));
     }
 
-    // orientAngle between two vectors [0, PI]
-    public static double angle(AIPoint v_one, AIPoint v_two) {
-        return angle(v_one, AIPoint.ZERO, v_two);
-    }
-
     // get in some orientAngle [0 2PI] or negative
     // return orientAngle between -PI, PI
     public static double orientAngle(double angle) {
@@ -65,8 +65,9 @@ public class AI {
         return angle;
     }
 
-    public static boolean isSegmentIntersectedByRay(AILine segment, AIPoint center, double angle) {
+    public static boolean isSegmentIntersectRay(AILine segment, AIPoint center, double angle) {
         // orientAngle line
+        // it's much better to implement this through degrees
         AILine a = new AILine(center, angle);
         AIPoint p = segment.intersection(a);
         return isBetween(segment.one, segment.two, p);
@@ -78,17 +79,6 @@ public class AI {
         return abs(a - b) < COMPUTATION_BIAS;
     }
 
-    public static AIPoint nearestPoint(AIPoint source, Iterable<AIPoint> ps) {
-        AIPoint minP = null;
-        double min = Double.MAX_VALUE, maybeMin;
-        for (AIPoint p : ps) {
-            if ((maybeMin = p.distance(source)) < min) {
-                min = maybeMin;
-                minP = p;
-            }
-        }
-        return minP;
-    }
 
     public static boolean isValueBetween(double one, double two, double between) {
         return (one <= between && between <= two) || (one >= between && between >= two);
@@ -96,10 +86,7 @@ public class AI {
 
     /** angles should be  */
     public static boolean isAngleBetween(double one, double two, double between) {
-        if (!isOriented(one) || !isOriented(two) || !isOriented(between)) throw new RuntimeException("not oriented");
-        double between_ = orientAngle(between - one);
-        double two_ = orientAngle(two - one);
-        return isValueBetween(0, two_, between_);
+        return orientAngle(between, one) * orientAngle(between, two) <= 0;
     }
 
     public static boolean isOriented(double angle) {
@@ -115,10 +102,6 @@ public class AI {
 
     public static double projectionScalar(AIPoint ofVector, AIPoint ontoVector) {
         return AIPoint.dotProduct(ofVector, ontoVector)/ontoVector.distance(AIPoint.ZERO);
-    }
-
-    public static double vectorLength(AIPoint p) {
-        return sqrt(p.dotProduct(p, p));
     }
 }
 

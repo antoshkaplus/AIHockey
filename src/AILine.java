@@ -21,7 +21,7 @@ class AILine implements Cloneable {
     }
     AILine(AIPoint center, double angle) {
         one = center;
-        two = AIPoint.sum(center, AI.unitVector(angle));
+        two = AIPoint.sum(center, AI.unit(angle));
     }
     AILine(double x_0, double y_0, double x_1, double y_1) {
         one = new AIPoint(x_0, y_0);
@@ -32,6 +32,13 @@ class AILine implements Cloneable {
         one.translate(dx, dy);
         two.translate(dx, dy);
     }
+
+    AIPoint middle() {
+        AIPoint mid = AIPoint.sum(one, two);
+        mid.scale(0.5);
+        return mid;
+    }
+
 
     @Override
     protected Object clone() {
@@ -74,4 +81,7 @@ class AILine implements Cloneable {
         return one > two ? this.one : this.two;
     }
 
+    AIPoint otherPoint(AIPoint point) {
+        return one == point ? two : one;
+    }
 }

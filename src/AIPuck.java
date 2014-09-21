@@ -5,6 +5,8 @@ import model.Puck;
  */
 public class AIPuck extends AIUnit {
 
+    public static final double RADIUS = 20;
+
     AIPuck(Puck puck) {
         super(puck);
     }
