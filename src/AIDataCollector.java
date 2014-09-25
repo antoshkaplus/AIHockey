@@ -66,6 +66,7 @@ public class AIDataCollector {
         }
     }
 
+
     void addState(AIPuck puck) {
         locations.add(new AIPoint(puck.getLocation()));
         speed.add(puck.getSpeedScalar());

@@ -9,17 +9,42 @@ import static java.lang.StrictMath.sqrt;
  *  don't think we will use use go to with angle procedure.
  *  usually it's important to strike after you are there
  *  but implementation is really complicated
+ *
+ *  probably every role should have instance of this shit
  */
 public final class AIGo {
-
-    private static final double DEFAULT_TARGET_RADIUS = 10;
-
-    public static AIMove to(AIHockeyist hockeyist, AIPoint target) {
-        return MaxAcceleration.to(hockeyist, target);
+    // default one is best acceleration
+    public enum GoType {
+        BEST_ACCELERATION,
+        MAX_ACCELERATION
     }
 
+    private static final double DEFAULT_TARGET_RADIUS = 15;
+
+
+    public static AIMove to(AIHockeyist hockeyist, AIPoint target, GoType type) {
+        switch (type) {
+            case BEST_ACCELERATION:
+                return BestAcceleration.to(hockeyist, target, DEFAULT_TARGET_RADIUS);
+            case MAX_ACCELERATION:
+                return MaxAcceleration.to(hockeyist, target);
+            default: throw new RuntimeException();
+        }
+    }
+
+
+    public static AIMove to(AIHockeyist hockeyist, AIPoint target) {
+        return BestAcceleration.to(hockeyist, target, 20);
+        //return MaxAcceleration.to(hockeyist, target);
+    }
+
+    // considering that unit can move
     public static AIMove to(AIHockeyist hockeyist, AIUnit unit) {
-        return MaxAcceleration.to(hockeyist, unit.getLocation());
+        double ticks = hockeyist.ticksAheadTo(unit.getLocation());
+        AIUnit.LocationTicks lt = unit.predictNextCollision();
+        double ticksCollision = 1000000;
+        if (lt != null) ticksCollision = lt.ticks;
+        return to(hockeyist, unit.predictLocationAfter(min(ticksCollision, ticks)));
     }
 
 //    public static AIMove toStop(AIManager.AIHockeyist hockeyist, AIPoint target) {
@@ -98,96 +123,96 @@ public final class AIGo {
             }
             return false;
         }
-//
-//        // deviation in units NOT degrees
-//        public static AIMove to(AIManager.AIHockeyist hockeyist, AIPoint target, double deviation) {
-//            AIMove move = new AIMove();
-//            double hockeyistAngle = hockeyist.getAngle();
-//
-//            AIPoint accelerationOne = AI.unitVector(hockeyistAngle);
-//            accelerationOne.scale(AIManager.SPEED_UP_FACTOR);
-//            AIPoint accelerationTwo = AI.unitVector(hockeyistAngle);
-//            accelerationTwo.scale(-AIManager.SPEED_DOWN_FACTOR);
-//            AIPoint accelerationMid = AIPoint.sum(accelerationOne, accelerationTwo);
-//            accelerationMid.scale(1./2);
-//
-//            AIPoint targetVector = AIPoint.difference(target, hockeyist.getLocation());
-//            AIPoint bestAcceleration = null;
-//            AIPoint speed = hockeyist.getSpeed();
-//
-//            for (int i = 0; i < ITERATION_COUNT; ++i) {
-//                AIPoint futureSpeedOne = AIPoint.sum(hockeyist.getSpeed(), accelerationOne);
-//                AIPoint futureSpeedTwo = AIPoint.sum(hockeyist.getSpeed(), accelerationTwo);
-//                // now lets compute who's better
-//
-//                double distanceOne = AIPoint.difference(targetVector, futureSpeedOne).scalar();
-//                double distanceTwo = AIPoint.difference(targetVector, futureSpeedTwo).scalar();
-//
-////                AIPoint pp = futureSpeedOne.unitVector();
-////                pp.scale(friction.hockeyistStopDistance(futureSpeedOne.scalar()).distance);
-////                distanceOne = targetVector.distance(pp);
-////                pp = futureSpeedTwo.unitVector();
-////                pp.scale(friction.hockeyistStopDistance(futureSpeedTwo.scalar()).distance);
-////                distanceTwo = targetVector.distance(pp);
-//
-//
-//                if (distanceOne < distanceTwo) {
-//                    // one is better
-//                    // is BANNED ?
-//                    if (isBestValid(speed, accelerationOne, targetVector, deviation)) {
-//                        bestAcceleration = accelerationOne;
-//                        break;
-//                    }
-//                    if (isBestValid(speed, accelerationMid, targetVector, deviation)) {
-//                        accelerationTwo = accelerationMid;
-//                    } else {
-//                        accelerationOne = accelerationMid;
-//                    }
-//                } else {
-//                    // two is better
-//                    if (isBestValid(speed, accelerationTwo, targetVector, deviation)) {
-//                        bestAcceleration = accelerationTwo;
-//                        break;
-//                    }
-//                    if (isBestValid(speed, accelerationMid, targetVector, deviation)) {
-//                        accelerationOne = accelerationMid;
-//                    } else {
-//                        accelerationTwo = accelerationMid;
-//                    }
-//                }
-//                accelerationMid = AIPoint.sum(accelerationOne, accelerationTwo);
-//                accelerationMid.scale(1./2);
-//            }
-//            if (bestAcceleration == null) {
-//                // take one which is valid
-//                if (isBestValid(speed, accelerationOne, targetVector, deviation)) {
-//                    bestAcceleration = accelerationOne;
-//                } else if (isBestValid(speed, accelerationTwo, targetVector, deviation)) {
-//                    bestAcceleration = accelerationTwo;
-//                } else {
-//                    bestAcceleration = new AIPoint(0, 0);
-//                }
-//            }
-//            // now need to manage make acceleration back to factor
-//            double s = AI.projectionScalar(bestAcceleration, AI.unitVector(hockeyistAngle));
-//            double a = 0;
-//            if (s > 0) {
-//                a = s/AIManager.SPEED_UP_FACTOR;
-//            } else {
-//                a = s/AIManager.SPEED_DOWN_FACTOR;
-//            }
-//            move.setSpeedUp(a);
-//            AIPoint futureSpeed = AIPoint.sum(hockeyist.getSpeed(), bestAcceleration);
-//            AIPoint p = hockeyist.getLocation();
-//            hockeyist.setLocation(AIPoint.sum(futureSpeed, p));
-//            move.setTurn(hockeyist.angleTo(target));
-//            hockeyist.setLocation(p);
-//            return move;
-//        }
-//
-//        AIMove toStop(AIManager.AIHockeyist hockeyist, AIPoint target, double deviation) {
-//            return null;
-//        }
+
+        // deviation in units NOT degrees
+        public static AIMove to(AIHockeyist hockeyist, AIPoint target, double deviation) {
+            AIMove move = new AIMove();
+            double hockeyistAngle = hockeyist.getAngle();
+
+            AIPoint accelerationOne = AI.unit(hockeyistAngle);
+            accelerationOne.scale(hockeyist.getMaxSpeedUp());
+            AIPoint accelerationTwo = AI.unit(hockeyistAngle);
+            accelerationTwo.scale(-hockeyist.getMaxSlowDown());
+            AIPoint accelerationMid = AIPoint.sum(accelerationOne, accelerationTwo);
+            accelerationMid.scale(1./2);
+
+            AIPoint targetVector = AIPoint.difference(target, hockeyist.getLocation());
+            AIPoint bestAcceleration = null;
+            AIPoint speed = hockeyist.getSpeed();
+
+            for (int i = 0; i < ITERATION_COUNT; ++i) {
+                AIPoint futureSpeedOne = AIPoint.sum(hockeyist.getSpeed(), accelerationOne);
+                AIPoint futureSpeedTwo = AIPoint.sum(hockeyist.getSpeed(), accelerationTwo);
+                // now lets compute who's better
+
+                double distanceOne = AIPoint.difference(targetVector, futureSpeedOne).scalar();
+                double distanceTwo = AIPoint.difference(targetVector, futureSpeedTwo).scalar();
+
+//                AIPoint pp = futureSpeedOne.unitVector();
+//                pp.scale(friction.hockeyistStopDistance(futureSpeedOne.scalar()).distance);
+//                distanceOne = targetVector.distance(pp);
+//                pp = futureSpeedTwo.unitVector();
+//                pp.scale(friction.hockeyistStopDistance(futureSpeedTwo.scalar()).distance);
+//                distanceTwo = targetVector.distance(pp);
+
+
+                if (distanceOne < distanceTwo) {
+                    // one is better
+                    // is BANNED ?
+                    if (isBestValid(speed, accelerationOne, targetVector, deviation)) {
+                        bestAcceleration = accelerationOne;
+                        break;
+                    }
+                    if (isBestValid(speed, accelerationMid, targetVector, deviation)) {
+                        accelerationTwo = accelerationMid;
+                    } else {
+                        accelerationOne = accelerationMid;
+                    }
+                } else {
+                    // two is better
+                    if (isBestValid(speed, accelerationTwo, targetVector, deviation)) {
+                        bestAcceleration = accelerationTwo;
+                        break;
+                    }
+                    if (isBestValid(speed, accelerationMid, targetVector, deviation)) {
+                        accelerationOne = accelerationMid;
+                    } else {
+                        accelerationTwo = accelerationMid;
+                    }
+                }
+                accelerationMid = AIPoint.sum(accelerationOne, accelerationTwo);
+                accelerationMid.scale(1./2);
+            }
+            if (bestAcceleration == null) {
+                // take one which is valid
+                if (isBestValid(speed, accelerationOne, targetVector, deviation)) {
+                    bestAcceleration = accelerationOne;
+                } else if (isBestValid(speed, accelerationTwo, targetVector, deviation)) {
+                    bestAcceleration = accelerationTwo;
+                } else {
+                    bestAcceleration = new AIPoint(0, 0);
+                }
+            }
+            // now need to manage make acceleration back to factor
+            double s = AI.projectionScalar(bestAcceleration, AI.unit(hockeyistAngle));
+            double a = 0;
+            if (s > 0) {
+                a = s/hockeyist.getMaxSpeedUp();
+            } else {
+                a = s/hockeyist.getMaxSlowDown();
+            }
+            move.setSpeedUp(a);
+            AIPoint futureSpeed = AIPoint.sum(hockeyist.getSpeed(), bestAcceleration);
+            AIPoint p = hockeyist.getLocation();
+            hockeyist.setLocation(AIPoint.sum(futureSpeed, p));
+            move.setTurn(hockeyist.angleTo(target));
+            hockeyist.setLocation(p);
+            return move;
+        }
+
+        AIMove toStop(AIHockeyist hockeyist, AIPoint target, double deviation) {
+            return null;
+        }
     }
 
 //

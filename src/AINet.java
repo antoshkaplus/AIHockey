@@ -40,8 +40,24 @@ public class AINet {
         return netSegment.middle();
     }
 
+
+
     AILine getNetSegment() {
         return netSegment;
+    }
+
+    private boolean isScoreAngle(AIPoint bar_0, AIPoint bar_1,
+                         AIPoint origin, double angle, double deviation) {
+        double angle_0 = AI.orientAngle(angle,
+                AI.orientAngle(AIPoint.difference(bar_0, origin)));
+        double angle_1 = AI.orientAngle(angle,
+                AI.orientAngle(AIPoint.difference(bar_1, origin)));
+        double abs_0 = abs(angle_0);
+        double abs_1 = abs(angle_1);
+        return abs_0 >= deviation && abs_1 >= deviation &&
+               abs_0 < PI/2 && abs_1 < PI/2 &&
+               angle_0 * angle_1 < 0;
+
     }
 
     boolean isScoreAngle(AIPoint origin, double angle, double deviation) {
@@ -54,6 +70,16 @@ public class AINet {
         return absOne >= deviation && absTwo >= deviation &&
                absOne < PI/2 && absTwo < PI/2 &&
                angleOne * angleTwo < 0;
+    }
+
+    boolean isNearestScoreAngle(AIPoint origin, double angle, double deviation) {
+        AIPoint near = netSegment.nearestPoint(origin);
+        return isScoreAngle(near, getNetCenter(), origin, angle, deviation);
+    }
+
+    boolean isFarthestScoreAngle(AIPoint origin, double angle, double deviation) {
+        AIPoint far = netSegment.farthestPoint(origin);
+        return isScoreAngle(far, getNetCenter(), origin, angle, deviation);
     }
 
     /** returns -PI, PI orient orientAngle to strike
@@ -84,13 +110,17 @@ public class AINet {
         if (isScoreAngle(hockeyist.getLocation(),
                          hockeyist.getAngle(),
                          0.5 * hockeyist.getPuckAngleDeviation())) {
+
+
+
             double startingSpeed = hockeyist.getStrikePuckSpeed();
             AIPoint p = hockeyist.getPuckLocation();
             // here we can go better by checking angle nearer than current one
-            return !canGoalieIntercept(p, hockeyist.getAngle(), startingSpeed);
+            return !canGoalieIntercept(p, AI.orientAngle(hockeyist.getAngle() + hockeyist.getPuckAngleDeviation()), startingSpeed);
         }
         return false;
     }
+
 
     // pass power is always 1
     boolean canScorePass(AIHockeyist hockeyist, double passAngle) {
@@ -109,6 +139,13 @@ public class AINet {
         return false;
     }
 
+
+    boolean canGoalieIntercept(AIPuck puck) {
+        return canGoalieIntercept(
+                puck.getLocation(),
+                puck.getSpeedAngle(),
+                puck.getSpeedScalar());
+    }
 
     // put inside puck info
     // should be careful with ticks - goalie can get better values
@@ -143,7 +180,7 @@ public class AINet {
             startSpeed = friction.puckAfterDistance(origin.distance(point), startSpeed).speed;
             // reassigning variables
             origin = point;
-            goalieLocation = point;
+            goalieLocation.set(goalieSegment.nearestPoint(origin));
         }
         // first consider goalie line as most dangerous
         AIPoint pointGoalie = puckLine.intersection(goalieSegment);

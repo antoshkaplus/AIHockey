@@ -48,6 +48,19 @@ public class AIRectangle {
         return origin.x + size.x;
     }
 
+    AIPoint getTopLeft() {
+        return origin;
+    }
+    AIPoint getTopRight() {
+        return new AIPoint(getRight(), getTop());
+    }
+    AIPoint getBottomLeft() {
+        return new AIPoint(getLeft(), getBottom());
+    }
+    AIPoint getBottomRight() {
+        return AIPoint.sum(origin, size);
+    }
+
     static AIRectangle intersection(AIRectangle rect_0, AIRectangle rect_1) {
         AIRectangle r = new AIRectangle();
         r.origin = AIPoint.max(rect_0.origin, rect_1.origin);

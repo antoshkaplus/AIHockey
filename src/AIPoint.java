@@ -53,6 +53,10 @@ class AIPoint implements Cloneable {
         this.x = x;
         this.y = y;
     }
+    void set(AIPoint p) {
+        x = p.x;
+        y = p.y;
+    }
 
     static AIPoint unit(AIPoint p) {
         double d = p.scalar();
@@ -77,6 +81,11 @@ class AIPoint implements Cloneable {
         AIPoint mid = AIPoint.sum(p_0, p_1);
         mid.scale(0.5);
         return mid;
+    }
+
+    @Override
+    public String toString() {
+        return String.format("AIPoint: (%.3f, %.3f)", x, y);
     }
 
     public AIPoint nearestPoint(Collection<AIPoint> ps) {

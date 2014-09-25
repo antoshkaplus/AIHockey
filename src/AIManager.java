@@ -35,6 +35,7 @@ public class AIManager {
     // don't count goalie
     private Collection<AIHockeyist> opponents;
     private Collection<AIHockeyist> teammates;
+    private Collection<AIHockeyist> players;
 
     private AIHockeyist puckOwner;
     private AIHockeyist hisGoalie;
@@ -55,7 +56,7 @@ public class AIManager {
 
     private AIRectangle defenceZone;
     private AIRectangle neutralZone;
-    private AIRectangle offensiveZone;
+    private AIRectangle offenceZone;
 
     private AIRectangle myNoScoreZone;
     private AIRectangle hisNoScoreZone;
@@ -69,6 +70,8 @@ public class AIManager {
     private AIRectangle hisCentralZone;
     private AIRectangle myCentralZone;
 
+    private AILine[] rinkBorders;
+
     private AIRectangle rink;
     private AIPoint center;
 
@@ -78,14 +81,22 @@ public class AIManager {
     private AIDefendPuck defendPuck;
     private AITakePuck takePuck;
     private AISideStraightAttack sideStraightAttack;
+    private AIDefendNet defendNet;
+    private AIInterceptPuck interceptPuck;
 
     private AITest test;
+    // initialized as true
 
 
     private Map<Long, AIMove> moves;
-
+    private Map<Long, AIRole> roles;
 
     private AIManager() {}
+
+    private AIMyPuckStrategy myPuckStrategy;
+    private AIHisPuckStrategy hisPuckStrategy;
+    private AINeuralPuckStrategy neuralPuckStrategy;
+    private AIStrategy currentStrategy;
 
     public void initialize(Game game) {
         // also init his goalie // he won't change
@@ -96,6 +107,13 @@ public class AIManager {
                 game.getRinkRight() - game.getRinkLeft(),
                 game.getRinkBottom() - game.getRinkTop());
         center = new AIPoint(rink.origin.x + rink.size.x/2, rink.origin.y + rink.size.y/2);
+
+        rinkBorders = new AILine[]{
+            new AILine(rink.getTopLeft(), rink.getTopRight()),
+            new AILine(rink.getTopRight(), rink.getBottomRight()),
+            new AILine(rink.getBottomRight(), rink.getBottomLeft()),
+            new AILine(rink.getBottomLeft(), rink.getTopLeft())
+        };
 
         hisNetSegment = new AILine(he.getNetFront(),
                 he.getNetBottom(),
@@ -186,20 +204,21 @@ public class AIManager {
                 rink.size.y);
         if (he.getNetFront() == game.getRinkLeft()) {
             defenceZone = right;
-            offensiveZone = left;
+            offenceZone = left;
         } else {
             defenceZone = left;
-            offensiveZone = right;
+            offenceZone = right;
         }
 
         hisNet = new AINet(hisNetSegment, hisGoalieSegment);
         myNet = new AINet(myNetSegment, myGoalieSegment);
 
         moves = new HashMap<Long, AIMove>();
+        roles = new HashMap<Long, AIRole>();
 
-        defendPuck = new AIDefendPuck();
-        takePuck = new AITakePuck();
-        sideStraightAttack = new AISideStraightAttack();
+        myPuckStrategy = new AIMyPuckStrategy();
+        hisPuckStrategy = new AIHisPuckStrategy();
+        neuralPuckStrategy = new AINeuralPuckStrategy();
     }
 
     public boolean isInitialized() {
@@ -238,6 +257,15 @@ public class AIManager {
         return hisNoScoreZone;
     }
 
+    public AIHockeyist getTeammate(long id) {
+        for (AIHockeyist h : teammates) {
+            if (h.getId() == id) {
+                return h;
+            }
+        }
+        return null;
+    }
+
     // update move for each guy
     // probably put inside world and game
     public void update(World world, Game game) {
@@ -245,6 +273,7 @@ public class AIManager {
             // already did all updations
             return;
         }
+
         currentTick = world.getTick();
 
         this.he = world.getOpponentPlayer();
@@ -253,12 +282,14 @@ public class AIManager {
 
         List<AIHockeyist> opponents = new ArrayList<AIHockeyist>();
         List<AIHockeyist> teammates = new ArrayList<AIHockeyist>();
+        List<AIHockeyist> players = new ArrayList<AIHockeyist>();
         hisGoalie = null;
         myGoalie = null;
         puckOwner = null;
         //System.out.println(world.getHockeyists().length);
         for (Hockeyist hock : world.getHockeyists()) {
             AIHockeyist aiHock = new AIHockeyist(hock);
+            if (hock.getType() != HockeyistType.GOALIE) players.add(aiHock);
             if (hock.isTeammate()) {
                 if (hock.getType() == HockeyistType.GOALIE) {
                     myGoalie = aiHock;
@@ -272,49 +303,54 @@ public class AIManager {
                     opponents.add(aiHock);
                 }
             }
+
             if (hock.getId() == world.getPuck().getOwnerHockeyistId()) {
                 puckOwner = aiHock;
             }
         }
+
         this.opponents = opponents;
         this.teammates = teammates;
+        this.players = players;
+
         if (!isInitialized()) {
             // initialize some constants only once if needed
             // goalie should be already ready
             initialize(game);
+            currentStrategy = neuralPuckStrategy;
+            currentStrategy.init();
         }
 
-        updateTeammates();
-    }
-
-    private void updateTeammates() {
-        for (AIHockeyist hockeyist : teammates) {
-            AIMove move;
-            if (puckOwner == null) {
-                move = takePuck.move(hockeyist);
-            } else if (puckOwner.isTeammate()) {
-                if (puckOwner == hockeyist) {
-                    move = sideStraightAttack.move(hockeyist);
-                    if (!move.isValid()) {
-                        move = AIGo.to(hockeyist, AIPoint.middle(center, myNet.getNetCenter()));
-                    }
-                } else {
-                    move = defendPuck.move(hockeyist);
-                }
-            } else {
-                move = defendPuck.move(hockeyist);
+        boolean didChange = false;
+        if (puckOwner == null) {
+            if (!(currentStrategy instanceof AINeuralPuckStrategy)) {
+                currentStrategy = neuralPuckStrategy;
+                didChange = true;
             }
-            // protection from permanent SWING
-            if (hockeyist != puckOwner && hockeyist.getLastAction() == ActionType.SWING) {
-                move.setAction(ActionType.CANCEL_STRIKE);
+        } else {
+            if (puckOwner.isTeammate() && !(currentStrategy instanceof AIMyPuckStrategy)) {
+                currentStrategy = myPuckStrategy;
+                didChange = true;
             }
-            moves.put(hockeyist.getId(), move);
+            if (puckOwner.isOpponent() && !(currentStrategy instanceof AIHisPuckStrategy)) {
+                currentStrategy = hisPuckStrategy;
+                didChange = true;
+            }
         }
-        //dataCollector.collectPuckData(puck, puckOwner);
+        if (didChange) {
+            currentStrategy.init();
+        }
+        currentStrategy.update();
     }
 
-    public Move move(long id) {
-        return moves.get(id);
+    public Move getMove(long id) {
+        AIMove m = currentStrategy.getMove(id);
+        AIHockeyist h = getTeammate(id);
+        // anti swing protection
+        if (h != puckOwner && h.getLastAction() == ActionType.SWING) {
+            m.setAction(ActionType.CANCEL_STRIKE);
+        }
+        return m;
     }
 
     public static AIManager getInstance() {
@@ -324,7 +360,17 @@ public class AIManager {
         return instance;
     }
 
+    public boolean isNeutralPuck() {
+        return puckOwner == null;
+    }
 
+    public boolean isMyPuck() {
+        return puckOwner != null && puckOwner.isTeammate();
+    }
+
+    public boolean isHisPuck() {
+        return puckOwner != null && !puckOwner.isTeammate();
+    }
 
     public boolean isPuckOwner(AIHockeyist hockeyist) {
         return hockeyist == puckOwner;
@@ -338,12 +384,112 @@ public class AIManager {
         return teammates;
     }
 
+    Collection<AIHockeyist> getPlayers() { return players; }
+
     public AIRectangle getMyZone() {
         return myZone;
     }
 
     public AIRectangle getHisZone() {
         return hisZone;
+    }
+
+    public AIRectangle getOffenceZone() {
+        return offenceZone;
+    }
+
+    public AIRectangle getDefenceZone() {
+        return defenceZone;
+    }
+
+    public boolean isInMyScoreZone(AIPoint point) {
+        return myZone.isInside(point)
+                && !myNoScoreZone.isInside(point)
+                && !centralZone.isInside(point);
+    }
+
+    public boolean isInMyScoreZone(AIUnit unit) {
+        return isInMyScoreZone(unit.getLocation());
+    }
+
+    public AIHockeyist getPuckOwner() {
+        return puckOwner;
+    }
+
+    private void correctMove(AIHockeyist hockeyist, AIMove move) {
+        List<AIPoint> evade = new ArrayList<AIPoint>();
+        for (AIHockeyist opp : opponents) {
+            AIUnit.LocationTicks lt = hockeyist.predictCollision(opp);
+            AIPoint p = lt == null ? null : lt.location;
+            if (p != null) {
+                evade.add(p);
+            }
+        }
+        double length = 0;
+        for (AIPoint e : evade) {
+            // this is vector
+            AIPoint r = AIPoint.difference(hockeyist.getLocation(), e);
+            length += r.scalar();
+        }
+        length *= 2;
+
+        double oldAngle = hockeyist.getAngle();
+        double[] turnAngles = {
+            move.getTurn(), 0,
+            -hockeyist.getMaxTurnPerTick(),
+            hockeyist.getMaxTurnPerTick()
+        };
+        for (double turn : turnAngles) {
+            double angle = AI.orientAngle(oldAngle + turn);
+            hockeyist.setAngle(angle);
+            AIPoint puckLocation = hockeyist.getPuckLocation();
+            boolean bad = false;
+            for (AIHockeyist opp : opponents) {
+                if (opp.isInStickRange(puckLocation)) { //&& opp.distanceTo(puckLocation) < 80 ) {
+                    bad = true;
+                    break;
+                }
+            }
+            if (!bad) {
+                move.setTurn(turn);
+                break;
+            }
+        }
+        hockeyist.setAngle(oldAngle);
+    }
+
+    public boolean canOpponentIntercept(AIHockeyist hockeyist) {
+        return canOpponentIntercept(hockeyist.getLocation(), hockeyist.getAngle());
+    }
+
+
+    public boolean canOpponentIntercept(AIPoint origin, double angle) {
+        AILine line = new AILine(origin, angle);
+        for (AIHockeyist opp : opponents) {
+            if (line.fromPointDistance(opp.getLocation()) < AIPuck.RADIUS + AIHockeyist.RADIUS &&
+                    AI.isValueBetween(origin.x, opp.getLocation().x, cos(angle) + origin.x)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public boolean canOpponentInterrupt(AIPoint origin, double ticks) {
+        for (AIHockeyist opp : opponents) {
+            if (opp.ticksAheadTo(origin) < ticks) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    boolean canHeScore() {
+        return myNet.isScoreAngle(puck.getLocation(), puck.getSpeedAngle(), 0.01) &&
+               myNet.canGoalieIntercept(puck);
+    }
+
+    public AILine[] getRinkBorders() {
+        return rinkBorders;
     }
 
 //
@@ -452,108 +598,7 @@ public class AIManager {
 
 
 //    private class Parabola {
-//        // x = a * (y-d)^2 + c
-//        double d;
-//        double a;
-//        double c;
-//
-//        static final double INDENT = HOCKEYIST_RADIUS + 2*PUCK_RADIUS;
-//
-//        // enter points are same for both sides
-//        // bottom goes first
-//        List<AIPoint> enterLocations;
-//        // depend on current game
-//        List<AIPoint> scoreLocations;
-//
-//        Parabola() {
-//            enterLocations = new ArrayList<AIPoint>(2);
-//            enterLocations.add(new AIPoint(
-//                    center.x,
-//                    min(game.getRinkBottom() - INDENT, getBottomY(center.x))));
-//            enterLocations.add(new AIPoint(
-//                    center.x,
-//                    max(game.getRinkTop() + INDENT, getTopY(center.x))));
-//
-//            scoreLocations = new ArrayList<AIPoint>(2);
-//            double dx = 2*HOCKEYIST_RADIUS + 2*puck.getRadius() + 170;
-//            double x = hisGoalie.getX() + signum(hisGoalie.getX() - he.getNetFront()) * dx;
-//            // can play with this coefficients
-//            scoreLocations.add(new AIPoint(x, he.getNetBottom() + 2*PUCK_RADIUS));
-//            scoreLocations.add(new AIPoint(x, he.getNetTop() - 2*PUCK_RADIUS));
-//
-//
-//            List<AIPoint> net = new ArrayList<AIPoint>(2);
-//            // need farthest one for current
-//            net.add(nearestBar(scoreLocations.get(1), hisNetSegment));
-//            net.add(nearestBar(scoreLocations.get(0), hisNetSegment));
-//
-//            AIPoint v_0 = AIPoint.difference(scoreLocations.get(0), net.get(0));
-//            AIPoint v_1 = AIPoint.difference(scoreLocations.get(1), net.get(1));
-//
-//            // derivatives should be opposite to each other
-//            double derivative_0 = new AILine(0, 1, 1, 1).intersection(new AILine(AIPoint.ZERO, v_0)).x;
-//            double derivative_1 = new AILine(0, 1, 1, 1).intersection(new AILine(AIPoint.ZERO, v_1)).x;
-//
-//            if (abs(derivative_0 + derivative_1) > AI.COMPUTATION_BIAS) {
-//                throw new RuntimeException("Derivatives should be equal");
-//            }
-//
-//            // coefficients should work for either side
-//            d = (scoreLocations.get(0).y + scoreLocations.get(1).y)/2;
-//            a = derivative_0/(2*(scoreLocations.get(0).y - d));
-//            c = scoreLocations.get(0).x - a*pow(scoreLocations.get(0).y - d, 2);
-//        }
-//
-//        double getX(double y) {
-//            return (y - d)*(y - d)*a + c;
-//        }
-//
-//        double getY(double x, double sign) {
-//            return sign*sqrt((x - c)/a) + d;
-//        }
-//        // can return NaN
-//        double getTopY(double x) {
-//            return max(getY(x, -1), game.getRinkTop() + INDENT);
-//        }
-//
-//        double getBottomY(double x) {
-//            return min(getY(x, 1), game.getRinkBottom() - INDENT);
-//        }
-//
-//        AIMove move(AIHockeyist hockeyist) {
-//            AIMove move = new AIMove();
-//            if (myZone.isInside(hockeyist.getLocation())) {
-//                // would be find to have this with angle
-//                return AIGo.to(hockeyist, nearest(hockeyist, enterLocations));
-//            } else {
-//                // if hockeyist inside no score zone or to far from control point we should withdraw
-//                if (hisNoScoreZone.isInside(hockeyist.getLocation()) || centralZone.isInside(hockeyist.getLocation())) {
-//                    move.setValid(false);
-//                    return move;
-//                }
-//                // later should reinitialize for future point
-//                double x = hockeyist.getX();
-//                double y = hockeyist.getY();
-//                double yBottom = getBottomY(x);
-//                double yTop = getTopY(x);
-//                AIPoint bar = farthestBar(hockeyist, hisNetSegment);
-//                // using speed vector aren't quite working well
-//                // hisGoalie can go down...
-//                x = hockeyist.getX() - signum(center.x - hisNetCenter.x) * 10;
-//                if (AI.isValueBetween(
-//                        hisNetCenter.x,
-//                        scoreLocations.get(0).x,
-//                        hockeyist.getX())) {
-//                    return AIGo.to(hockeyist, bar);
-//                }
-//                ArrayList<AIPoint> locations = new ArrayList<AIPoint>(2);
-//                locations.add(new AIPoint(x, getBottomY(x)));
-//                locations.add(new AIPoint(x, getTopY(x)));
-//                AIPoint aim = nearest(hockeyist, locations);
-//                return AIGo.to(hockeyist, aim);
-//            }
-//
-//        }
+
 //    }
 
 //    private class CentralDefender {
@@ -578,7 +623,7 @@ public class AIManager {
 //        }
 //
 //        AIMove onDefence(AIHockeyist hockeyist) {
-//            if (offensiveZone.isInside(puck.getLocation())) {
+//            if (offenceZone.isInside(puck.getLocation())) {
 //                double angle = AI.orientAngle(AIPoint.difference(puck.getLocation(), center));
 //                return AIGo.to.goToStop(
 //                        hockeyist,

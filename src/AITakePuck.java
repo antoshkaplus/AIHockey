@@ -5,11 +5,18 @@ import model.ActionType;
  */
 public class AITakePuck implements AIRole {
 
-    @Override
-    public AIMove move(AIHockeyist hockeyist) {
-        AIManager manager = AIManager.getInstance();
-        AIPuck puck = manager.getPuck();
+    private long hockeyistId;
 
+    AITakePuck(long hockeyistId) {
+        this.hockeyistId = hockeyistId;
+    }
+
+
+    @Override
+    public AIMove move() {
+        AIManager manager = AIManager.getInstance();
+        AIHockeyist hockeyist = manager.getTeammate(hockeyistId);
+        AIPuck puck = manager.getPuck();
         AIMove move = AIGo.to(hockeyist, puck);
         if (hockeyist.isInStickRange(puck)) {
             move.setAction(ActionType.TAKE_PUCK);

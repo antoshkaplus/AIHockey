@@ -12,7 +12,7 @@ public class AIHockeyist extends AIUnit {
     public static final double RADIUS = 30;
     public static double PUCK_BINDING_RANGE = 55;
 
-    private static final double MAX_TURN_ANGLE_PER_TICK = 3 * PI / 180;
+    public static final double MAX_TURN_ANGLE_PER_TICK = 3 * PI / 180;
 
     private static final double ACCESS_DISTANCE = 120;
     private static final double ACCESS_ANGLE_BIAS = PI/12;
@@ -25,12 +25,13 @@ public class AIHockeyist extends AIUnit {
     private static final double SPEED_UP_FACTOR = 0.116;
     private static final double SPEED_DOWN_FACTOR = 0.069;
 
+    // useful if wanna see future
+    private int currentTickShift = 0;
 
     private long id;
     private boolean teammate;
     private ActionType lastAction;
     private int lastActionTick;
-    private int swingTicks;
 
 
     AIHockeyist(Hockeyist hockeyist) {
@@ -40,19 +41,55 @@ public class AIHockeyist extends AIUnit {
         lastAction = hockeyist.getLastAction();
         Integer lastActionTick = hockeyist.getLastActionTick();
         this.lastActionTick = lastActionTick == null ? -1 : lastActionTick;
-        swingTicks = hockeyist.getSwingTicks();
+    }
+
+    AIHockeyist(AIHockeyist hockeyist) {
+        super(hockeyist);
+        id = hockeyist.getId();
+        teammate = hockeyist.isTeammate();
+        lastAction = hockeyist.getLastAction();
+        lastActionTick = hockeyist.getLastActionTick();
+
+    }
+
+    public static AIHockeyist hockeyistAfterSwingTicks(AIHockeyist hockeyist, int ticks) {
+        AIManager manager = AIManager.getInstance();
+        AIHockeyist next = new AIHockeyist(hockeyist);
+        if (next.lastAction != ActionType.SWING) {
+            next.lastAction = ActionType.SWING;
+            next.lastActionTick = manager.getCurrentTick();
+        }
+        next.currentTickShift = ticks;
+        // also need to change location and speed, angle stays the same
+        AIFriction friction = AIFriction.getInstance();
+        AIFriction.DistanceSpeed distanceSpeed = friction.hockeyistAfterTicks(ticks, next.getSpeedScalar());
+        next.getLocation().translate(AI.vector(hockeyist.getSpeedAngle(), distanceSpeed.distance));
+        next.getSpeed().set(AI.vector(hockeyist.getSpeedAngle(), distanceSpeed.speed));
+        return next;
+    }
+
+    public double ticksAheadTo(AIPoint target) {
+        double turnTicks = 0.5 * abs(angleTo(target))/getMaxTurnPerTick();
+        double travelTicks = AIHockeyistSpeedUp.getInstance()
+                .afterDistance(distanceTo(target), getSpeedScalar())
+                    .ticks;
+        return turnTicks + travelTicks;
     }
 
     public boolean isTeammate() {
         return teammate;
     }
+    public boolean isOpponent() { return !teammate; }
 
     public long getId() {
         return id;
     }
 
     public boolean isInStickRange(AIUnit unit) {
-        return distanceTo(unit) < ACCESS_DISTANCE && abs(angleTo(unit)) < ACCESS_ANGLE_BIAS;
+        return isInStickRange(unit.getLocation());
+    }
+    public boolean isInStickRange(AIPoint center) {
+        return distanceTo(center) < ACCESS_DISTANCE && abs(angleTo(center)) < ACCESS_ANGLE_BIAS;
     }
 
     public ActionType getLastAction() {
@@ -76,8 +113,10 @@ public class AIHockeyist extends AIUnit {
     }
 
     double getStrikePuckSpeed() {
+        AIManager manager = AIManager.getInstance();
         int ticks = 0;
         if (getLastAction() == ActionType.SWING) {
+            int swingTicks = getSwingTicks();
             // only 20 effective ticks
             ticks = min(20, swingTicks);
         }
@@ -87,7 +126,7 @@ public class AIHockeyist extends AIUnit {
 
     double getPassPuckSpeed(double passPower, double passAngle) {
         return 15 * passPower + getSpeedScalar() *
-                cos(getAngle() + passAngle - AI.orientAngle(getSpeed()));
+                cos(getAngle() + passAngle - getSpeedAngle());
     }
 
     // this will change by formula
@@ -107,6 +146,10 @@ public class AIHockeyist extends AIUnit {
         return SPEED_DOWN_FACTOR;
     }
 
+    double getMaxTurnPerTick() {
+        return MAX_TURN_ANGLE_PER_TICK;
+    }
+
     // [-1, 1]
     AIPoint getNextLocation(double speedUp) {
         AIPoint acceleration = AI.unit(getAngle());
@@ -114,8 +157,22 @@ public class AIHockeyist extends AIUnit {
         return AIPoint.sum(getLocation(), AIPoint.sum(getSpeed(), acceleration));
     }
 
+    int getSwingTicks() {
+        AIManager manager = AIManager.getInstance();
+        return lastAction == ActionType.SWING ? currentTickShift + manager.getCurrentTick() - lastActionTick : 0;
+    }
+
+    boolean isFullSwing() {
+        return getSwingTicks() >= 20;
+    }
+
+    @Override
+    public double getRadius() {
+        return RADIUS;
+    }
+
     boolean isPassAngle(double passAngle) {
-        return AI.isValueBetween(-PASS_ANGLE_BIAS, passAngle, PASS_ANGLE_BIAS);
+        return AI.isValueBetween(-PASS_ANGLE_BIAS, PASS_ANGLE_BIAS, passAngle);
     }
 }
 

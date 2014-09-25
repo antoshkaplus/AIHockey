@@ -1,5 +1,9 @@
 import model.ActionType;
 
+import java.io.BufferedWriter;
+import java.io.FileWriter;
+import java.io.IOException;
+
 import static java.lang.StrictMath.abs;
 
 /**
@@ -13,6 +17,17 @@ public class AITest implements AIRole {
     private int test = 0;
     private boolean visitedOrigin = false;
 
+    private BufferedWriter writer;
+
+    AITest() {
+        try {
+            writer = new BufferedWriter(
+                    new FileWriter("test_data.txt", false));
+        } catch (IOException e) {
+            System.out.println("I hate exceptions");
+        }
+    }
+
 
     public void setTest(int test) {
         visitedOrigin = false;
@@ -20,7 +35,8 @@ public class AITest implements AIRole {
     }
 
     @Override
-    public AIMove move(AIHockeyist hockeyist) {
+    public AIMove move() {
+        AIHockeyist hockeyist = null;
         switch (test) {
             case HOCKEYIST_FRICTION:
                 return onTestHockeyistFriction(hockeyist);
@@ -100,6 +116,48 @@ public class AITest implements AIRole {
             if (hockeyist.isInStickRange(puck)) {
                 move.setAction(ActionType.TAKE_PUCK);
             }
+        }
+        return move;
+    }
+
+
+    AIPoint startPoint = null;
+
+    AIMove onTestAcceleration(AIHockeyist hockeyist) {
+        AIManager manager = AIManager.getInstance();
+        AIPoint source = manager.getRink().getTopLeft();
+        AIPoint target = manager.getRink().getBottomRight();
+        AIMove move = new AIMove();
+
+        if (hockeyist.distanceTo(target) < 2.5*hockeyist.RADIUS) {
+            visitedOrigin = false;
+            return new AIMove();
+        }
+
+        if (!visitedOrigin) {
+            if (hockeyist.distanceTo(source) < 2.5 * hockeyist.RADIUS) {
+                    if (hockeyist.getSpeedScalar() < 0.1) {
+                        if (hockeyist.angleTo(target) < AI.DEGREE) {
+                            visitedOrigin = true;
+                            startPoint = new AIPoint(hockeyist.getLocation());
+                        } else {
+                            move.setTurn(hockeyist.angleTo(target));
+                        }
+                    } else {
+                        return move;
+                    }
+            } else {
+                move = AIGo.to(hockeyist, source);
+            }
+        } else {
+            try {
+                writer.write(String.format("%.2f,%.2f;",
+                        hockeyist.getSpeedScalar(),
+                        startPoint.distance(hockeyist.getLocation())));
+            } catch (IOException e) {
+                System.out.println("I hate exceptions!");
+            }
+            move.setSpeedUp(1);
         }
         return move;
     }

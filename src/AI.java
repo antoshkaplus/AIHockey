@@ -2,20 +2,23 @@
  * Created by antoshkaplus on 9/11/14.
  */
 
-import static java.lang.Math.PI;
-import static java.lang.Math.abs;
-import static java.lang.Math.sqrt;
-import static java.lang.StrictMath.*;
+import static java.lang.Math.*;
 
 /** a lot of global shit here
  * probably some util functions */
 
 public class AI {
     public static final double COMPUTATION_BIAS = 1e-4;
-    public static final double DEGREE = PI / 2;
+    public static final double DEGREE = PI / 180;
 
     public static AIPoint unit(double angle) {
         return new AIPoint(cos(angle), sin(angle));
+    }
+
+    public static AIPoint vector(double angle, double distance) {
+        AIPoint p = unit(angle);
+        p.scale(distance);
+        return p;
     }
 
     // if oriented orientAngle needed please use world orientedAngle
@@ -27,7 +30,15 @@ public class AI {
         double b = p_two.distance(p_center);
         double c = p_one.distance(p_two);
         // 0, PI
-        return Math.acos((a * a + b * b - c * c) / (2 * a * b));
+        double dd = a * a + b * b - c * c;
+        double ff = 2 * a * b;
+        double rr;
+        if (abs(dd - ff) < COMPUTATION_BIAS) {
+            rr = 1.0 * signum(dd*ff);
+        } else {
+            rr = dd / ff;
+        }
+        return Math.acos(rr);
     }
 
     // angle between two vectors [0, PI]

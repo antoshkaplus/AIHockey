@@ -16,7 +16,7 @@ public final class MyStrategy implements Strategy {
     public void move(Hockeyist self, World world, Game game, Move move) {
         AIManager manager = AIManager.getInstance();
         manager.update(world, game);
-        Move m = manager.move(self.getId());
+        Move m = manager.getMove(self.getId());
         move.setAction(m.getAction());
         move.setTurn(m.getTurn());
         move.setSpeedUp(m.getSpeedUp());
