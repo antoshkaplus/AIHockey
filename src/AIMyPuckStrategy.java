@@ -30,10 +30,10 @@ public class AIMyPuckStrategy implements AIStrategy {
 
     @Override
     public void update() {
-//        AIHockeyist puckOwner = manager.getPuckOwner();
-//        AIRectangle myZone = manager.getMyZone();
-//        int currentTick = manager.getCurrentTick();
-//        if (myZone.isInside(puckOwner.getLocation()) && currentTick%100 == 0) init();
+        AIHockeyist puckOwner = manager.getPuckOwner();
+        AIRectangle myZone = manager.getMyZone();
+        int currentTick = manager.getCurrentTick();
+        if (myZone.isInside(puckOwner.getLocation()) && currentTick%100 == 0) init();
         for (Map.Entry<Long, AIRole> p : roles.entrySet()) {
             // check for invalid move actually
             moves.put(p.getKey(), p.getValue().move());

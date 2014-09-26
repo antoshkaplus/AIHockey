@@ -7,6 +7,7 @@ public class AIAttack implements AIRole {
 
     protected long hockeyistId;
 
+    // need to make valid back to true somehow
     private boolean validSwing = true;
     // between 10 or 20
     private int swingTicks = 0;
@@ -34,7 +35,7 @@ public class AIAttack implements AIRole {
                 return move;
             } else {
                 if (hisNet.canScoreStrike(hockeyist) &&
-                        currentTick - hockeyist.getLastActionTick() >= 10) {
+                        currentTick - hockeyist.getLastActionTick() > 10) {
                     move.setAction(ActionType.STRIKE);
                     return move;
                 }
@@ -77,12 +78,14 @@ public class AIAttack implements AIRole {
         if (manager.canOpponentIntercept(hockeyist)) {
             if (canScoreAfterSwing(20)) {
                 swingTicks = 20;
+                validSwing = true;
                 move.setAction(ActionType.SWING);
                 return move;
             }
         } else {
             if (canScoreAfterSwing(10)) {
                 swingTicks = 10;
+                validSwing = true;
                 move.setAction(ActionType.SWING);
                 return move;
             }

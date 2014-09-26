@@ -116,10 +116,29 @@ public class AINet {
 
             double startingSpeed = hockeyist.getStrikePuckSpeed();
             AIPoint p = hockeyist.getPuckLocation();
+
+            double minPartPlus = abs(minPart(p, AI.orientAngle(hockeyist.getAngle() + ANGLE_DEVIATION_FACTOR * hockeyist.getPuckAngleDeviation())));
+            double minPartMinus = abs(minPart(p, AI.orientAngle(hockeyist.getAngle() - ANGLE_DEVIATION_FACTOR * hockeyist.getPuckAngleDeviation())));
+            if (minPartMinus > minPartPlus) {
+                return !canGoalieIntercept(p, AI.orientAngle(hockeyist.getAngle() - ANGLE_DEVIATION_FACTOR * hockeyist.getPuckAngleDeviation()), startingSpeed);
+            } else {
+                return !canGoalieIntercept(p, AI.orientAngle(hockeyist.getAngle() + ANGLE_DEVIATION_FACTOR * hockeyist.getPuckAngleDeviation()), startingSpeed);
+            }
+
             // here we can go better by checking angle nearer than current one
-            return !canGoalieIntercept(p, AI.orientAngle(hockeyist.getAngle() + hockeyist.getPuckAngleDeviation()), startingSpeed);
+            //return !canGoalieIntercept(p, AI.orientAngle(hockeyist.getAngle() + hockeyist.getPuckAngleDeviation()), startingSpeed);
         }
         return false;
+    }
+
+    double minPart(AIPoint origin, double angle) {
+        double angleOne = AI.orientAngle(angle,
+                AI.orientAngle(AIPoint.difference(netSegment.one, origin)));
+        double angleTwo = AI.orientAngle(angle,
+                AI.orientAngle(AIPoint.difference(netSegment.two, origin)));
+        double absOne = abs(angleOne);
+        double absTwo = abs(angleTwo);
+        return absOne - absTwo > 0 ? angleTwo : angleOne;
     }
 
 
@@ -155,6 +174,9 @@ public class AINet {
     boolean canGoalieIntercept(AIPoint origin,
                                double angle,
                                double startSpeed) {
+
+
+
 
         AIFriction friction = AIFriction.getInstance();
         AIManager manager = AIManager.getInstance();
