@@ -6,6 +6,7 @@ import static java.lang.StrictMath.signum;
  */
 public class AINet {
     private static final double GOALIE_SPEED = 6;
+    private static final double ANGLE_DEVIATION_FACTOR = 0.7;
 
     private final AILine netSegment;
     private final AILine goalieSegment;
@@ -109,7 +110,7 @@ public class AINet {
         // can control deviation by sufficient coefficient 0.5
         if (isScoreAngle(hockeyist.getLocation(),
                          hockeyist.getAngle(),
-                         0.5 * hockeyist.getPuckAngleDeviation())) {
+                         ANGLE_DEVIATION_FACTOR * hockeyist.getPuckAngleDeviation())) {
 
 
 
@@ -128,7 +129,7 @@ public class AINet {
         double angle = AI.orientAngle(hockeyist.getAngle() + passAngle);
         // like previous method
         if (isScoreAngle(hockeyist.getLocation(), angle,
-                         0.5 * hockeyist.getPuckAngleDeviation())) {
+                         ANGLE_DEVIATION_FACTOR * hockeyist.getPuckAngleDeviation())) {
             // good angle
             double startingSpeed = hockeyist.getPassPuckSpeed(1, passAngle);
             hockeyist.setAngle(angle);

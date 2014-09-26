@@ -34,8 +34,8 @@ public final class AIGo {
 
 
     public static AIMove to(AIHockeyist hockeyist, AIPoint target) {
-        return BestAcceleration.to(hockeyist, target, 20);
-        //return MaxAcceleration.to(hockeyist, target);
+        //return BestAcceleration.to(hockeyist, target, 20);
+        return MaxAcceleration.to(hockeyist, target);
     }
 
     // considering that unit can move

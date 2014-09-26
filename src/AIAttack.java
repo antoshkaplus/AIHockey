@@ -42,8 +42,9 @@ public class AIAttack implements AIRole {
                 for (int st = swingTicks; st < swingTicks + 5; ++st) {
                     AIHockeyist futureHockeyist =
                             AIHockeyist.hockeyistAfterSwingTicks(
-                                    hockeyist, swingTicks);
+                                    hockeyist, st);
                     if (hisNet.canScoreStrike(futureHockeyist)) {
+                        swingTicks = st;
                         --swingTicks;
                         // return clear move
                         return move;

@@ -68,6 +68,25 @@ public class AIHockeyist extends AIUnit {
         return next;
     }
 
+    public static AIHockeyist hockeyistAfterTurnTicks(AIHockeyist hockeyist, int ticks, double turnAngle) {
+        AIHockeyist next = new AIHockeyist(hockeyist);
+        AIFriction friction = AIFriction.getInstance();
+        AIFriction.DistanceSpeed distanceSpeed = friction.hockeyistAfterTicks(ticks, next.getSpeedScalar());
+        next.setAngle(AI.orientAngle(next.getAngle() + turnAngle));
+        next.getLocation().translate(AI.vector(hockeyist.getSpeedAngle(), distanceSpeed.distance));
+        next.getSpeed().set(AI.vector(hockeyist.getSpeedAngle(), distanceSpeed.speed));
+        return next;
+    }
+
+    public static AIHockeyist hockeyistAfterTicks(AIHockeyist hockeyist, int ticks) {
+        AIHockeyist next = new AIHockeyist(hockeyist);
+        AIFriction friction = AIFriction.getInstance();
+        AIFriction.DistanceSpeed distanceSpeed = friction.hockeyistAfterTicks(ticks, next.getSpeedScalar());
+        next.getLocation().translate(AI.vector(hockeyist.getSpeedAngle(), distanceSpeed.distance));
+        next.getSpeed().set(AI.vector(hockeyist.getSpeedAngle(), distanceSpeed.speed));
+        return next;
+    }
+
     public double ticksAheadTo(AIPoint target) {
         double turnTicks = 0.5 * abs(angleTo(target))/getMaxTurnPerTick();
         double travelTicks = AIHockeyistSpeedUp.getInstance()

@@ -19,7 +19,7 @@ public class AISideStraightAttack implements AIRole {
     }
 
     private long hockeyistId;
-    private AIAttack attack;
+    private AITurnAttack attack;
 
     private AIManager manager = AIManager.getInstance();
     private AIPoint turnLocation;
@@ -30,7 +30,7 @@ public class AISideStraightAttack implements AIRole {
 
     public AISideStraightAttack(long hockeyistId, Orientation orientation) {
         this.hockeyistId = hockeyistId;
-        attack = new AIAttack(hockeyistId);
+        attack = new AITurnAttack(hockeyistId);
         AIPoint center = manager.getCenter();
         AIRectangle rink = manager.getRink();
         if (orientation == Orientation.BOTTOM) {

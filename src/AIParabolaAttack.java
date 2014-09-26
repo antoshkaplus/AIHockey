@@ -21,7 +21,7 @@ public class AIParabolaAttack implements AIRole {
     AIManager manager = AIManager.getInstance();
 
     long hockeyistId;
-    AIAttack attack;
+    AITurnAttack attack;
     Orientation orientation;
 
     // x = a * (y-d)^2 + c
@@ -36,7 +36,7 @@ public class AIParabolaAttack implements AIRole {
 
     AIParabolaAttack(long hockeyistId, Orientation orientation) {
         this.hockeyistId = hockeyistId;
-        attack = new AIAttack(hockeyistId);
+        attack = new AITurnAttack(hockeyistId);
         init(orientation);
     }
 
