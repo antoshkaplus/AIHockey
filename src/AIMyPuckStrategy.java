@@ -24,7 +24,7 @@ public class AIMyPuckStrategy implements AIStrategy {
             if (h == puckOwner) {
                 continue;
             }
-            roles.put(h.getId(), new AIDefendPuck(h.getId()));
+            roles.put(h.getId(), new AIDefendNet(h.getId()));
         }
     }
 
@@ -33,7 +33,10 @@ public class AIMyPuckStrategy implements AIStrategy {
         AIHockeyist puckOwner = manager.getPuckOwner();
         AIRectangle myZone = manager.getMyZone();
         int currentTick = manager.getCurrentTick();
-        if (myZone.isInside(puckOwner.getLocation()) && currentTick%100 == 0) init();
+
+        init();
+        //if (myZone.isInside(puckOwner.getLocation()) && currentTick%20 == 0) init();
+
         for (Map.Entry<Long, AIRole> p : roles.entrySet()) {
             // check for invalid move actually
             moves.put(p.getKey(), p.getValue().move());
@@ -78,8 +81,8 @@ public class AIMyPuckStrategy implements AIStrategy {
             roles = new AIRole[] {
                 new AIParabolaAttack(hId, AIParabolaAttack.Orientation.BOTTOM),
                 new AIParabolaAttack(hId, AIParabolaAttack.Orientation.TOP),
-                new AISideStraightAttack(hId, AISideStraightAttack.Orientation.BOTTOM),
-                new AISideStraightAttack(hId, AISideStraightAttack.Orientation.TOP)
+//                new AISideStraightAttack(hId, AISideStraightAttack.Orientation.BOTTOM),
+//                new AISideStraightAttack(hId, AISideStraightAttack.Orientation.TOP)
             };
         }
 
@@ -100,7 +103,13 @@ public class AIMyPuckStrategy implements AIStrategy {
             }
         }
         if (role == null) throw new RuntimeException("bitch has no valid role");
-        return role;
+
+        AIPoint center = manager.getCenter();
+        // on top
+        if (h.getLocation().y < center.y) return new AIParabolaAttack(hId, AIParabolaAttack.Orientation.TOP);
+        else return new AIParabolaAttack(hId, AIParabolaAttack.Orientation.BOTTOM);
+
+//        return role;
     }
 
     // return angle... speed aren't matter that much right now

@@ -27,6 +27,7 @@ public class AINeuralPuckStrategy implements AIStrategy {
 
     @Override
     public void update() {
+        init();
         for (Map.Entry<Long, AIRole> r : roles.entrySet()) {
             AIMove m = r.getValue().move();
             if (!m.isValid()) {
@@ -47,7 +48,7 @@ public class AINeuralPuckStrategy implements AIStrategy {
         AIPuck puck = manager.getPuck();
         AIRectangle offenceZone = manager.getOffenceZone();
         if (offenceZone.isInside(puck.getLocation()) &&
-                    puck.nearestUnit((Collection) manager.getTeammates()) != h) {
+            puck.nearestUnit((Collection) manager.getTeammates()) != h) {
             return new AIDefendNet(h.getId());
         } else {
             return new AITakePuck(h.getId());

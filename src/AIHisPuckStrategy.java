@@ -18,18 +18,21 @@ public class AIHisPuckStrategy implements AIStrategy {
         moves = new TreeMap<Long, AIMove>();
         roles = new TreeMap<Long, AIRole>();
         for (AIHockeyist h : manager.getTeammates()) {
-            roles.put(h.getId(), new AIInterceptPuck(h.getId()));
+            roles.put(h.getId(), new AIInterceptPuckOwnerDefence(h.getId()));
         }
-
-
     }
 
     @Override
     public void update() {
         for (AIHockeyist h : manager.getTeammates()) {
             //AIRole role = new AIInterceptPuck(hockeyist.getId());
-            moves.put(h.getId(), roles.get(h.getId()).move());
-//            // his puck
+            AIMove m = roles.get(h.getId()).move();
+            if (!m.isValid()) {
+                roles.put(h.getId(), new AIAgainstPuckOwnerDefence(h.getId()));
+                m = roles.get(h.getId()).move();
+            }
+            moves.put(h.getId(), m);
+              // his puck
 //            if (puck.nearestUnit((Collection)teammates) != hockeyist) {
 //                move = defendNet.move(hockeyist);
 //            }

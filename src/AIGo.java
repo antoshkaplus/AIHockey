@@ -1,4 +1,9 @@
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.Objects;
+
 import static java.lang.Math.*;
 import static java.lang.Math.abs;
 import static java.lang.StrictMath.sqrt;
@@ -22,6 +27,108 @@ public final class AIGo {
     private static final double DEFAULT_TARGET_RADIUS = 15;
 
 
+    public static AIMove pursue(AIHockeyist hockeyist, AIUnit unit) {
+        double ticks = hockeyist.ticksAheadTo(unit.getLocation());
+        AIUnit.LocationTicks lt = unit.predictNextCollision();
+        double ticksCollision = 1000000;
+        if (lt != null) ticksCollision = lt.ticks;
+        return toStop(hockeyist, unit.predictLocationAfter(min(ticksCollision, ticks)));
+    }
+
+    public static AIMove toAvoid(AIHockeyist hockeyist, AIPoint target) {
+        AIManager manager = AIManager.getInstance();
+        AIRectangle rink = manager.getRink();
+        double maxDistance = 130;
+
+        AIPuck puck = manager.getPuck();
+
+        List<AIHockeyist> opponents = new ArrayList<AIHockeyist>();
+        for (AIHockeyist opp : manager.getOpponents()) {
+            if (puck.distanceTo(opp) < maxDistance) {
+                opponents.add(opp);
+            }
+        }
+
+        if (opponents.isEmpty()) {
+            return to(hockeyist, target);
+        }
+
+        // greater score is better, how far puck we from both hockeyists
+        double bestScore = 0;
+        // from -3 to 3
+        double bestTurn = 0;
+        // from -1 to 1
+        double bestAcceleration = 0;
+
+        for (double acceleration : new double[]{-1, 0, 1}) {
+            for (double turn : new double[]{-hockeyist.getMaxTurnPerTick(), 0, hockeyist.getMaxTurnPerTick()}) {
+                AIHockeyist next = AIHockeyist.hockeyistNext(hockeyist, acceleration, turn);
+                AIPoint p = next.getPuckLocation();
+
+                if (manager.getRink().distanceToInsidePoint(p) < manager.getRink().distanceToInsidePoint(hockeyist.getPuckLocation()) && manager.getRink().distanceToInsidePoint(p) < AIHockeyist.RADIUS) continue;
+
+                double score = 0;
+                for (AIHockeyist opp : opponents) {
+                    score += pow(p.distance(opp.getLocation()), 2);
+                }
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestTurn = turn;
+                    bestAcceleration = acceleration;
+                }
+            }
+        }
+
+        AIMove m = new AIMove();
+        m.setTurn(bestTurn);
+        m.setSpeedUp(bestAcceleration);
+        return m;
+    }
+
+    public static AIMove toAvoid2(AIHockeyist hockeyist, AIPoint target) {
+        AIManager manager = AIManager.getInstance();
+        AIRectangle rink = manager.getRink();
+        double maxCurrentDistance = 300;
+        // location of opponent in collision moment
+        AIPoint opponentCollisionLocation = null;
+        AIHockeyist opponent = null;
+        double collisionTicks = Double.MAX_VALUE;
+        for (AIHockeyist opp : manager.getOpponents()) {
+            AIUnit.LocationTicks lt = opp.predictCollision(hockeyist);
+            if (lt == null) continue;
+            if (lt.ticks < collisionTicks && opp.distanceTo(hockeyist) < maxCurrentDistance) {
+                collisionTicks = lt.ticks;
+                opponentCollisionLocation = lt.location;
+                opponent = opp;
+            }
+        }
+        if (opponentCollisionLocation == null) return to(hockeyist, target);
+
+
+        AIPoint v = AIPoint.difference(opponentCollisionLocation, hockeyist.getLocation());
+        // perpendicular guys
+        double scaleFactor = 2*AIHockeyist.RADIUS / v.scalar();
+        AIPoint w_0 = new AIPoint(v.y, -v.x);
+        w_0.scale(scaleFactor);
+        w_0.translate(opponentCollisionLocation);
+        AIPoint w_1 = new AIPoint(-v.y, v.x);
+        w_1.scale(scaleFactor);
+        w_1.translate(opponentCollisionLocation);
+        if (rink.distanceToInsidePoint(w_0) < AIHockeyist.RADIUS &&
+                rink.distanceToInsidePoint(w_1) > AIHockeyist.RADIUS) return to(hockeyist, w_1);
+        if (rink.distanceToInsidePoint(w_1) < AIHockeyist.RADIUS &&
+                rink.distanceToInsidePoint(w_0) > AIHockeyist.RADIUS) return to(hockeyist, w_0);
+        if (hockeyist.distanceTo(w_0) < hockeyist.distanceTo(w_1)) {
+            return to(hockeyist, w_0);
+        } else {
+            return to(hockeyist, w_1);
+        }
+
+
+    }
+
+
+
     public static AIMove to(AIHockeyist hockeyist, AIPoint target, GoType type) {
         switch (type) {
             case BEST_ACCELERATION:
@@ -34,8 +141,12 @@ public final class AIGo {
 
 
     public static AIMove to(AIHockeyist hockeyist, AIPoint target) {
-        //return BestAcceleration.to(hockeyist, target, 20);
-        return MaxAcceleration.to(hockeyist, target);
+        AIManager manager = AIManager.getInstance();
+        if (manager.getCurrentStrategy() instanceof AIMyPuckStrategy) {
+            return MaxAcceleration.to(hockeyist, target);
+        } else {
+            return BestAcceleration.to(hockeyist, target, DEFAULT_TARGET_RADIUS);
+        }
     }
 
     // considering that unit can move
@@ -47,9 +158,9 @@ public final class AIGo {
         return to(hockeyist, unit.predictLocationAfter(min(ticksCollision, ticks)));
     }
 
-//    public static AIMove toStop(AIManager.AIHockeyist hockeyist, AIPoint target) {
-//        return null;
-//    }
+    public static AIMove toStop(AIHockeyist hockeyist, AIPoint target) {
+        return MaxAcceleration.toStop(hockeyist, target);
+    }
 
 
     private static class MaxAcceleration {
@@ -73,26 +184,29 @@ public final class AIGo {
         }
 
         private static AIMove toStop(AIHockeyist hockeyist, AIPoint target) {
-            AIMove move = new AIMove();
             AIPoint positive = hockeyist.getNextLocation(1);
             AIPoint negative = hockeyist.getNextLocation(-1);
             double distance = hockeyist.distanceTo(target);
+            double speed = hockeyist.getSpeedScalar();
             AIFriction friction = AIFriction.getInstance();
-            double positiveFriction = friction.hockeyistStopDistance(positive.scalar()).distance;
-            double positiveD = positive.distance(target) - positiveFriction;
-            double negativeFriction = friction.hockeyistStopDistance(negative.scalar()).distance;
-            double negativeD = negative.distance(target) - negativeFriction;
-            if (positiveD > 0 && negativeD < 0) {
-                // use positive
+            if (friction.hockeyistStopDistance(speed).distance - 3*AIHockeyist.RADIUS > distance) {
+                // choosing one that decreases speed
+                AIMove move = new AIMove();
+                AIHockeyist h = new AIHockeyist(hockeyist);
 
-            } else if (positiveD < 0 && negativeD > 0) {
-
-            } else if (positiveD >= 0 && negativeD >= 0) {
-
-            } else if (positiveD <= 0 && negativeD <= 0) {
-
+                if (hockeyist.getNextSpeed(1).scalar() <
+                        hockeyist.getNextSpeed(-1).scalar()) {
+                    move.setSpeedUp(1);
+                    h.setLocation(h.getNextLocation(1));
+                } else {
+                    move.setSpeedUp(-1);
+                    h.setLocation(h.getNextLocation(-1));
+                }
+                move.setTurn(h.angleTo(target));
+                return move;
+            } else {
+                return to(hockeyist, target);
             }
-            return move;
         }
     }
 

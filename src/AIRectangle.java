@@ -1,6 +1,9 @@
 /**
  * Created by antoshkaplus on 9/13/14.
  */
+
+import static java.lang.Math.*;
+
 public class AIRectangle {
 
     AIPoint origin = new AIPoint();
@@ -68,6 +71,12 @@ public class AIRectangle {
                 Math.min(rect_0.getRight(), rect_1.getRight()) - r.origin.x,
                 Math.min(rect_0.getBottom(), rect_1.getBottom()) - r.origin.y);
         return r;
+    }
+
+    double distanceToInsidePoint(AIPoint p) {
+        return min(
+                min(abs(getTop() - p.y), abs(getBottom() - p.y)),
+                min(abs(getLeft() - p.x), abs(getRight() - p.x)));
     }
 
 //

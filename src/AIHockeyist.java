@@ -1,6 +1,8 @@
 import model.ActionType;
 import model.Hockeyist;
 
+import java.util.Collection;
+
 import static java.lang.StrictMath.*;
 import static java.lang.StrictMath.cos;
 
@@ -32,13 +34,14 @@ public class AIHockeyist extends AIUnit {
     private boolean teammate;
     private ActionType lastAction;
     private int lastActionTick;
-
+    private int remainingCooldownTicks;
 
     AIHockeyist(Hockeyist hockeyist) {
         super(hockeyist);
         id = hockeyist.getId();
         teammate = hockeyist.isTeammate();
         lastAction = hockeyist.getLastAction();
+        remainingCooldownTicks = hockeyist.getRemainingCooldownTicks();
         Integer lastActionTick = hockeyist.getLastActionTick();
         this.lastActionTick = lastActionTick == null ? -1 : lastActionTick;
     }
@@ -50,6 +53,10 @@ public class AIHockeyist extends AIUnit {
         lastAction = hockeyist.getLastAction();
         lastActionTick = hockeyist.getLastActionTick();
 
+    }
+
+    int getRemainingCooldownTicks() {
+        return remainingCooldownTicks;
     }
 
     public static AIHockeyist hockeyistAfterSwingTicks(AIHockeyist hockeyist, int ticks) {
@@ -87,6 +94,13 @@ public class AIHockeyist extends AIUnit {
         return next;
     }
 
+    public static AIHockeyist hockeyistNext(AIHockeyist hockeyist, double speedUp, double turn) {
+        AIHockeyist next = new AIHockeyist(hockeyist);
+        next.setLocation(next.getNextLocation(speedUp));
+        next.setAngle(AI.orientAngle(next.getAngle() + turn));
+        return next;
+    }
+
     public double ticksAheadTo(AIPoint target) {
         double turnTicks = 0.5 * abs(angleTo(target))/getMaxTurnPerTick();
         double travelTicks = AIHockeyistSpeedUp.getInstance()
@@ -94,6 +108,8 @@ public class AIHockeyist extends AIUnit {
                     .ticks;
         return turnTicks + travelTicks;
     }
+
+
 
     public boolean isTeammate() {
         return teammate;
@@ -110,6 +126,15 @@ public class AIHockeyist extends AIUnit {
     public boolean isInStickRange(AIPoint center) {
         return distanceTo(center) < ACCESS_DISTANCE && abs(angleTo(center)) < ACCESS_ANGLE_BIAS;
     }
+    public boolean isAnyInStickRange(Collection<AIUnit> units) {
+        for (AIUnit u : units) {
+            if (isInStickRange(u)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
 
     public ActionType getLastAction() {
         return lastAction;
@@ -174,6 +199,12 @@ public class AIHockeyist extends AIUnit {
         AIPoint acceleration = AI.unit(getAngle());
         acceleration.scale(speedUp * (speedUp < 0 ? getMaxSlowDown() : getMaxSpeedUp()));
         return AIPoint.sum(getLocation(), AIPoint.sum(getSpeed(), acceleration));
+    }
+
+    AIPoint getNextSpeed(double speedUp) {
+        AIPoint acceleration = AI.unit(getAngle());
+        acceleration.scale(speedUp * (speedUp < 0 ? getMaxSlowDown() : getMaxSpeedUp()));
+        return AIPoint.sum(getSpeed(), acceleration);
     }
 
     int getSwingTicks() {

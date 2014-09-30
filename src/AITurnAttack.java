@@ -28,7 +28,7 @@ public class AITurnAttack implements AIRole {
         AIHockeyist h = manager.getTeammate(hockeyistId);
         AINet net = manager.getHisNet();
         m = new AIMove();
-        for (int i = 1; i < 10; ++i) {
+        for (int i = 1; i < 20; ++i) {
             AIHockeyist hAfter = AIHockeyist.hockeyistAfterTicks(h, i);
             double angle = net.bestScoreAngle(hAfter.getLocation(), 0.7*hAfter.getPuckAngleDeviation());
             double turnAngle = hAfter.angleTo(angle);

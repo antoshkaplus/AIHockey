@@ -1,10 +1,7 @@
 
 import model.Unit;
 
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.List;
+import java.util.*;
 
 import static java.lang.Math.*;
 
@@ -162,8 +159,11 @@ public abstract class AIUnit {
         double dd = pv*pv - 4*(pp-rr)*vv;
         if (dd < 0) return null;
         dd = Math.sqrt(dd);
-        //if (vv < 1e-7) return -1;
+        if (vv == 0) return null;
         double ticks = Math.min((-pv - dd)/(2*vv), (-pv + dd)/(2*vv));
+        if (Double.isNaN(ticks)) {
+            throw new RuntimeException();
+        }
         if (ticks < 0) return null;
         return new LocationTicks(predictLocationAfter(ticks), ticks);
     }
@@ -217,6 +217,12 @@ public abstract class AIUnit {
         }
         return minLt;
     }
+
+    public boolean isMovingAwayFrom(AIPoint target) {
+        AIPoint nextLocation = getNextLocation();
+        return distanceTo(target) < nextLocation.distance(target) - AI.COMPUTATION_BIAS;
+    }
+
 
     public static class LocationTicks {
         AIPoint location;

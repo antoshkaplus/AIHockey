@@ -76,14 +76,14 @@ public class AIAttack implements AIRole {
 
 
         if (manager.canOpponentIntercept(hockeyist)) {
-            if (canScoreAfterSwing(20)) {
+            if (canScoreAfterSwing(20) && !manager.canOpponentInterrupt(hockeyist.getLocation(), 2./3*20)) {
                 swingTicks = 20;
                 validSwing = true;
                 move.setAction(ActionType.SWING);
                 return move;
             }
         } else {
-            if (canScoreAfterSwing(10)) {
+            if (canScoreAfterSwing(10) && !manager.canOpponentInterrupt(hockeyist.getLocation(), 2./3*10)) {
                 swingTicks = 10;
                 validSwing = true;
                 move.setAction(ActionType.SWING);

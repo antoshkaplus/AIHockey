@@ -408,9 +408,18 @@ public class AIManager {
                 && !centralZone.isInside(point);
     }
 
+    public AIStrategy getCurrentStrategy() {
+        return currentStrategy;
+    }
+
     public boolean isInMyScoreZone(AIUnit unit) {
         return isInMyScoreZone(unit.getLocation());
     }
+
+    public boolean isInOffenceZone(AIUnit unit) {
+        return offenceZone.isInside(unit.getLocation());
+    }
+
 
     public AIHockeyist getPuckOwner() {
         return puckOwner;

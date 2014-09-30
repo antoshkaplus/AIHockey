@@ -84,4 +84,9 @@ class AILine implements Cloneable {
     AIPoint otherPoint(AIPoint point) {
         return one == point ? two : one;
     }
+
+//    AILine perpendicularLine(AILine originalLine, AIPoint throughPoint) {
+//         AIPoint.difference(originalLine.one, originalLine.two);
+//    }
+
 }

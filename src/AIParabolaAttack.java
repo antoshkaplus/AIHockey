@@ -102,12 +102,12 @@ public class AIParabolaAttack implements AIRole {
         AIMove move = new AIMove();
         if (myZone.isInside(hockeyist.getLocation()) && hockeyist.distanceTo(enterLocation) > 40) {
             // would be find to have this with angle
-            return AIGo.to(hockeyist, enterLocation);
+            return AIGo.toAvoid(hockeyist, enterLocation);
         } else {
             // if hockeyist inside no score zone or to far from control point we should withdraw
             if (hisNoScoreZone.isInside(hockeyist.getLocation()) ||
                     centralZone.isInside(hockeyist.getLocation())) {
-                return AIGo.to(hockeyist, manager.getCenter());
+                return AIGo.toAvoid(hockeyist, manager.getCenter());
             }
             // later should reinitialize for future point
             double x = hockeyist.getX();
@@ -123,7 +123,7 @@ public class AIParabolaAttack implements AIRole {
                     scoreLocation.x,
                     hockeyist.getX())) {
 
-                AIMove mm = AIGo.to(hockeyist, bar, AIGo.GoType.MAX_ACCELERATION);
+                AIMove mm = AIGo.toAvoid(hockeyist, bar);//, AIGo.GoType.MAX_ACCELERATION);
                 mm.setSpeedUp(mm.getSpeedUp()*0.5);
                 return mm;
             }
@@ -131,7 +131,7 @@ public class AIParabolaAttack implements AIRole {
             locations.add(new AIPoint(x, getBottomY(x)));
             locations.add(new AIPoint(x, getTopY(x)));
             AIPoint aim = hockeyist.nearestPoint(locations);
-            AIMove kk = AIGo.to(hockeyist, aim, AIGo.GoType.MAX_ACCELERATION);
+            AIMove kk = AIGo.toAvoid(hockeyist, aim);
             kk.setSpeedUp(kk.getSpeedUp()*0.5);
             return kk;
         }

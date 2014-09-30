@@ -36,9 +36,9 @@ public class AIDefendNet implements AIRole {
             }
         }
         AIPoint p_0 = new AIPoint(myNetCenter);
-        p_0.scale(1./3);
+        p_0.scale(2./3);
         AIPoint p_1 = new AIPoint(puck.getLocation());
-        p_1.scale(2./3);
+        p_1.scale(1./3);
 
         AIPoint target = AIPoint.sum(p_0, p_1);
         return AIGo.to(hockeyist, target);
